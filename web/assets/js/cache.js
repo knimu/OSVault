@@ -1,102 +1,148 @@
-import { API } from './api.js';
+/**
+ * OSVault - Page Cache & Virtual Memory Paging Module
+ */
 
-export const Cache = {
-  async init() {
+window.cacheModule = {
+  init() {
     this.bindEvents();
-    await this.refreshInMemStats();
+    this.refresh();
   },
 
   bindEvents() {
-    const btnSim = document.getElementById('btn-run-paging-sim');
+    const btnSim = document.getElementById('btn-run-page-sim');
     if (btnSim) {
-      btnSim.addEventListener('click', () => this.runSimulation());
+      btnSim.onclick = () => this.runSimulation();
     }
 
-    const btnClear = document.getElementById('btn-clear-inmem-cache');
+    const btnClear = document.getElementById('btn-clear-cache');
     if (btnClear) {
-      btnClear.addEventListener('click', async () => {
-        await API.clearCache();
-        window.App.toast('In-memory cache cleared.', 'success');
-        this.refreshInMemStats();
-      });
+      btnClear.onclick = () => this.clearCache();
     }
   },
 
-  async refreshInMemStats() {
+  async refresh() {
     try {
-      const stats = await API.getCacheStats();
-      const el = document.getElementById('inmem-cache-stats-text');
-      if (el) {
-        el.textContent = `Policy: ${stats.policy} | Capacity: ${stats.capacity} entries | Active: ${stats.entries} | Hits: ${stats.hits} | Misses: ${stats.misses} | Evictions: ${stats.evictions} | Hit Ratio: ${stats.hit_ratio.toFixed(1)}%`;
-      }
+      const stats = await window.api.getCacheStats();
+      const hitsEl = document.getElementById('cache-hits');
+      if (hitsEl) hitsEl.textContent = stats.hits || 0;
+
+      const missEl = document.getElementById('cache-misses');
+      if (missEl) missEl.textContent = stats.misses || 0;
+
+      const ratioEl = document.getElementById('cache-ratio');
+      if (ratioEl) ratioEl.textContent = `${(stats.hit_ratio || 0).toFixed(1)}%`;
+
+      const cachedEl = document.getElementById('cache-cached-blocks');
+      if (cachedEl) cachedEl.textContent = `${stats.entries || 0} / ${stats.capacity || 64}`;
     } catch (err) {
       console.error('Failed to load cache stats:', err);
     }
   },
 
-  async runSimulation() {
-    const seqStr = document.getElementById('paging-sequence-input').value.trim();
-    const frames = parseInt(document.getElementById('paging-frames-input').value, 10);
-
-    const sequence = seqStr.split(/[,\s]+/).map(x => parseInt(x, 10)).filter(x => !isNaN(x));
-    if (sequence.length === 0) {
-      window.App.toast('Please provide a valid sequence of page numbers.', 'error');
-      return;
-    }
-
+  async clearCache() {
     try {
-      const data = await API.simulatePaging(sequence, frames, 'BOTH');
-      this.renderPagingResults(data.fifo, 'fifo-results-container');
-      this.renderPagingResults(data.lru, 'lru-results-container');
-      window.App.toast('Page replacement simulation completed.', 'success');
+      await window.api.clearCache();
+      window.app.showToast('In-memory page cache cleared.', 'info');
+      this.refresh();
     } catch (err) {
-      window.App.toast(`Simulation failed: ${err.message}`, 'error');
+      window.app.showToast('Failed to clear cache: ' + err.message, 'error');
     }
   },
 
-  renderPagingResults(res, containerId) {
-    const container = document.getElementById(containerId);
-    if (!container) return;
+  async runSimulation() {
+    const refInput = document.getElementById('page-ref-string');
+    const framesInput = document.getElementById('page-frame-count');
+    const algoInput = document.getElementById('page-algo-select');
 
-    let html = `
-      <div style="margin-bottom: 0.75rem; font-size: 0.85rem;">
-        <span class="status-badge" style="background:#1e3a5f; color:#93c5fd; border-color:#3b82f6;">Hits: ${res.total_hits} (${res.hit_ratio.toFixed(1)}%)</span>
-        <span class="status-badge error" style="margin-left: 6px;">Faults: ${res.total_misses} (${res.miss_ratio.toFixed(1)}%)</span>
-      </div>
-      <div class="table-wrap">
-        <table class="data-table" style="font-size: 0.75rem;">
-          <thead>
-            <tr>
-              <th>Step</th>
-              <th>Page</th>
-              <th>Frames</th>
-              <th>Status</th>
-              <th>Evicted</th>
-            </tr>
-          </thead>
-          <tbody>
-    `;
+    const seqStr = refInput ? refInput.value.trim() : '7,0,1,2,0,3,0,4,2,3,0,3,2,1,2,0,1,7,0,1';
+    const frames = framesInput ? parseInt(framesInput.value, 10) || 3 : 3;
+    const algo = algoInput ? algoInput.value : 'FIFO';
 
-    res.steps.forEach((s, idx) => {
-      const statusBadge = s.hit
-        ? '<span style="color: var(--status-success); font-weight:600;">HIT</span>'
-        : '<span style="color: var(--status-danger); font-weight:600;">FAULT</span>';
-      
-      const frameStr = `[ ${s.frames.join(', ')} ]`;
-      const evicted = s.evicted_page >= 0 ? `Page ${s.evicted_page}` : '-';
+    const sequence = seqStr.split(/[,\s]+/).map(x => parseInt(x, 10)).filter(x => !isNaN(x));
+    if (sequence.length === 0) {
+      window.app.showToast('Please provide a valid comma-separated reference string (e.g., 7, 0, 1, 2)', 'warning');
+      return;
+    }
 
-      html += `
-        <tr>
-          <td>${idx + 1}</td>
-          <td><strong>${s.page}</strong></td>
-          <td style="font-family: var(--font-mono);">${frameStr}</td>
-          <td>${statusBadge}</td>
-          <td style="color: var(--text-dim);">${evicted}</td>
-        </tr>
-      `;
-    });
+    const statsBox = document.getElementById('page-sim-stats');
+    const container = document.getElementById('page-sim-container');
 
-    html += `</tbody></table></div>`;
-    container.innerHTML = html;
+    try {
+      const res = await window.api.request('/api/cache/simulate', {
+        method: 'POST',
+        body: JSON.stringify({ sequence, frames, algorithm: algo })
+      });
+
+      const r = (algo === 'LRU') ? (res.lru || res.fifo) : (res.fifo || res.lru);
+      if (!r) throw new Error('No simulation results returned');
+
+      if (statsBox) {
+        statsBox.innerHTML = `
+          <div class="stat-card p-3 mb-2">
+            <div class="d-flex justify-between align-center">
+              <div>
+                <strong>Algorithm:</strong> <span class="badge badge-primary">${r.algorithm}</span> &bull; 
+                <strong>Page Frames:</strong> ${r.frame_count} &bull; 
+                <strong>Total References:</strong> ${sequence.length}
+              </div>
+              <div>
+                <span class="badge badge-success">Hits: ${r.total_hits} (${(r.hit_ratio * 100).toFixed(1)}%)</span>
+                <span class="badge badge-danger">Page Faults: ${r.total_misses} (${(r.miss_ratio * 100).toFixed(1)}%)</span>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      if (container) {
+        let frameHeaders = '';
+        for (let f = 0; f < frames; ++f) {
+          frameHeaders += `<th>Frame ${f}</th>`;
+        }
+
+        container.innerHTML = `
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Step</th>
+                <th>Page Ref</th>
+                ${frameHeaders}
+                <th>Result</th>
+                <th>Evicted</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${(r.steps || []).map((s, idx) => {
+                let frameCols = '';
+                for (let f = 0; f < frames; ++f) {
+                  const val = (s.frames && s.frames[f] !== undefined) ? s.frames[f] : '-';
+                  frameCols += `<td class="font-mono text-center">${val}</td>`;
+                }
+
+                return `
+                  <tr>
+                    <td class="text-muted small">#${idx + 1}</td>
+                    <td class="font-mono"><strong>${s.page}</strong></td>
+                    ${frameCols}
+                    <td>
+                      ${s.hit ? '<span class="badge badge-success">HIT</span>' : '<span class="badge badge-danger">FAULT</span>'}
+                    </td>
+                    <td class="font-mono text-muted small">
+                      ${s.evicted_page !== undefined && s.evicted_page !== -1 ? 'Evicted ' + s.evicted_page : '-'}
+                    </td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+        `;
+      }
+
+      window.app.showToast(`Paging simulation complete: ${r.total_misses} page faults.`, 'info');
+    } catch (err) {
+      window.app.showToast('Simulation failed: ' + err.message, 'error');
+    }
   }
 };
+
+window.Cache = window.cacheModule;

@@ -3,7 +3,7 @@
  * Demonstrates Pipes, Message Queues, Shared Memory with Mutex, and Client-Server IPC.
  */
 
-const ipcModule = {
+window.ipcModule = {
   currentTab: 'pipe',
 
   init() {
@@ -396,3 +396,5 @@ const ipcModule = {
     return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 };
+
+window.Ipc = window.ipcModule;

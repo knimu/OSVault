@@ -19,11 +19,31 @@ static std::string get_mime_type(const std::string& path) {
     return "text/plain; charset=utf-8";
 }
 
+static fs::path resolve_static_path(const std::string& base_web_dir, const std::string& relative_subpath) {
+    std::vector<fs::path> search_roots = {
+        fs::path(base_web_dir),
+        fs::current_path() / base_web_dir,
+        fs::current_path() / "web",
+        fs::current_path() / ".." / "web",
+        fs::current_path() / ".." / ".." / "web",
+        fs::path("C:/Users/khush/Downloads/OSVault_reconstructed/web")
+    };
+    for (const auto& root : search_roots) {
+        std::error_code ec;
+        fs::path candidate = root / relative_subpath;
+        if (fs::exists(candidate, ec) && fs::is_regular_file(candidate, ec)) {
+            return candidate;
+        }
+    }
+    return fs::path(base_web_dir) / relative_subpath;
+}
+
 static crow::response serve_static_file(const fs::path& file_path) {
-    if (!fs::exists(file_path) || !fs::is_regular_file(file_path)) {
+    std::error_code ec;
+    if (!fs::exists(file_path, ec) || !fs::is_regular_file(file_path, ec)) {
         crow::json::wvalue err;
         err["ok"] = false;
-        err["error"] = "File not found";
+        err["error"] = "File not found: " + file_path.string();
         return crow::response(404, err);
     }
 
@@ -118,14 +138,14 @@ void register_system_routes(crow::SimpleApp& app, ServerContext& ctx) {
     // Root page
     CROW_ROUTE(app, "/")
     ([&ctx]() {
-        fs::path index_path = fs::path(ctx.config.web_dir) / "index.html";
+        fs::path index_path = resolve_static_path(ctx.config.web_dir, "index.html");
         return serve_static_file(index_path);
     });
 
     // Static asset serving: CSS, JS, etc.
     CROW_ROUTE(app, "/assets/<path>")
     ([&ctx](const std::string& subpath) {
-        fs::path asset_path = fs::path(ctx.config.web_dir) / "assets" / subpath;
+        fs::path asset_path = resolve_static_path(ctx.config.web_dir, "assets/" + subpath);
         return serve_static_file(asset_path);
     });
 }

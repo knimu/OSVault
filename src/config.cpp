@@ -12,6 +12,9 @@ AppConfig AppConfig::parse_args(int argc, char* argv[]) {
     if (const char* env_port = std::getenv("OSVAULT_PORT")) {
         try { config.port = std::stoi(env_port); } catch (...) {}
     }
+    if (const char* env_host = std::getenv("OSVAULT_HOST")) {
+        config.host = env_host;
+    }
     if (const char* env_db = std::getenv("OSVAULT_DB_PATH")) {
         config.db_path = env_db;
     }
@@ -24,6 +27,8 @@ AppConfig AppConfig::parse_args(int argc, char* argv[]) {
         std::string arg = argv[i];
         if ((arg == "--port" || arg == "-p") && i + 1 < argc) {
             try { config.port = std::stoi(argv[++i]); } catch (...) {}
+        } else if ((arg == "--host" || arg == "-b") && i + 1 < argc) {
+            config.host = argv[++i];
         } else if ((arg == "--db" || arg == "-d") && i + 1 < argc) {
             config.db_path = argv[++i];
         } else if ((arg == "--web" || arg == "-w") && i + 1 < argc) {

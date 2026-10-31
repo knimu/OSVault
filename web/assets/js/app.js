@@ -2,7 +2,7 @@
  * OSVault - Main Application Orchestrator & View Switcher
  */
 
-const app = {
+window.app = {
   currentView: 'dashboard',
   healthTimer: null,
 
@@ -46,6 +46,7 @@ const app = {
     // Hide all view sections
     document.querySelectorAll('.view-section').forEach(sec => {
       sec.classList.remove('active');
+      sec.style.display = 'none';
     });
 
     // Deactivate all nav links
@@ -60,11 +61,15 @@ const app = {
     const target = document.getElementById(`view-${viewName}`);
     if (target) {
       target.classList.add('active');
+      target.style.display = 'block';
       this.currentView = viewName;
     } else {
       // Fallback
       const dash = document.getElementById('view-dashboard');
-      if (dash) dash.classList.add('active');
+      if (dash) {
+        dash.classList.add('active');
+        dash.style.display = 'block';
+      }
       this.currentView = 'dashboard';
     }
 
@@ -75,40 +80,40 @@ const app = {
   triggerViewInit(view) {
     switch (view) {
       case 'dashboard':
-        if (window.dashboardModule) dashboardModule.init();
+        if (window.dashboardModule) window.dashboardModule.init();
         break;
       case 'files':
-        if (window.filesModule) filesModule.init();
+        if (window.filesModule) window.filesModule.init();
         break;
       case 'blocks':
-        if (window.blocksModule) blocksModule.init();
+        if (window.blocksModule) window.blocksModule.init();
         break;
       case 'cache':
-        if (window.cacheModule) cacheModule.init();
+        if (window.cacheModule) window.cacheModule.init();
         break;
       case 'scheduler':
-        if (window.schedulerModule) schedulerModule.init();
+        if (window.schedulerModule) window.schedulerModule.init();
         break;
       case 'memory':
-        if (window.memoryModule) memoryModule.init();
+        if (window.memoryModule) window.memoryModule.init();
         break;
       case 'sync':
-        if (window.syncModule) syncModule.init();
+        if (window.syncModule) window.syncModule.init();
         break;
       case 'deadlock':
-        if (window.deadlockModule) deadlockModule.init();
+        if (window.deadlockModule) window.deadlockModule.init();
         break;
       case 'ipc':
-        if (window.ipcModule) ipcModule.init();
+        if (window.ipcModule) window.ipcModule.init();
         break;
       case 'clocks':
-        if (window.clocksModule) clocksModule.init();
+        if (window.clocksModule) window.clocksModule.init();
         break;
       case 'logs':
-        if (window.logsModule) logsModule.init();
+        if (window.logsModule) window.logsModule.init();
         break;
       case 'recovery':
-        if (window.recoveryModule) recoveryModule.init();
+        if (window.recoveryModule) window.recoveryModule.init();
         break;
     }
   },
@@ -120,10 +125,10 @@ const app = {
   setupHealthMonitoring() {
     const checkHealth = async () => {
       try {
-        const res = await api.getHealth();
+        const res = await window.api.getHealth();
         const badge = document.getElementById('status-indicator');
         if (badge) {
-          if (res.status === 'ok') {
+          if (res.ok || res.status === 'healthy' || res.status === 'ok') {
             badge.className = 'status-badge online';
             badge.innerHTML = '<span class="status-dot"></span> Online';
           } else {
@@ -159,7 +164,7 @@ const app = {
     if (!container) return;
 
     const toast = document.createElement('div');
-    toast.className = `toast-item toast-${type}`;
+    toast.className = `toast toast-${type} ${type}`;
     
     let icon = 'ℹ️';
     if (type === 'success') icon = '✓';
@@ -168,17 +173,22 @@ const app = {
 
     toast.innerHTML = `
       <span class="toast-icon">${icon}</span>
-      <span class="toast-message">${this.escape(message)}</span>
+      <span class="toast-message" style="margin-left: 6px;">${this.escape(message)}</span>
     `;
 
     container.appendChild(toast);
 
     setTimeout(() => {
-      toast.classList.add('hide');
+      toast.style.opacity = '0';
+      toast.style.transition = 'opacity 0.3s ease';
       setTimeout(() => {
         if (toast.parentNode) toast.parentNode.removeChild(toast);
       }, 300);
     }, duration);
+  },
+
+  toast(msg, type) {
+    this.showToast(msg, type);
   },
 
   escape(s) {
@@ -187,7 +197,9 @@ const app = {
   }
 };
 
+window.App = window.app;
+
 // Auto bootstrap when DOM ready
 document.addEventListener('DOMContentLoaded', () => {
-  app.init();
+  window.app.init();
 });

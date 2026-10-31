@@ -3,7 +3,7 @@
  * Displays WAL persistent event stream, filtering, searching, and audit history.
  */
 
-const logsModule = {
+window.logsModule = {
   currentFilter: '',
   searchQuery: '',
   limit: 50,
@@ -161,3 +161,5 @@ const logsModule = {
     return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 };
+
+window.Logs = window.logsModule;

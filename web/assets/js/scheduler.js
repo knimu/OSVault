@@ -1,6 +1,8 @@
-import { API } from './api.js';
+/**
+ * OSVault - CPU Scheduling Simulator Module
+ */
 
-export const Scheduler = {
+window.schedulerModule = {
   processes: [
     { pid: 'P1', arrival_time: 0, burst_time: 5, priority: 2 },
     { pid: 'P2', arrival_time: 1, burst_time: 3, priority: 1 },
@@ -10,141 +12,244 @@ export const Scheduler = {
 
   init() {
     this.bindEvents();
-    this.renderProcessTable();
+    this.renderProcessQueue();
   },
 
   bindEvents() {
-    const btnAdd = document.getElementById('btn-add-process');
+    const btnAdd = document.getElementById('btn-add-proc');
     if (btnAdd) {
-      btnAdd.addEventListener('click', () => {
-        const nextId = 'P' + (this.processes.length + 1);
-        this.processes.push({ pid: nextId, arrival_time: 0, burst_time: 4, priority: 1 });
-        this.renderProcessTable();
-      });
+      btnAdd.onclick = () => this.addProcess();
     }
 
-    const btnSim = document.getElementById('btn-run-scheduler');
-    if (btnSim) {
-      btnSim.addEventListener('click', () => this.runSimulation());
+    const algoSelect = document.getElementById('sched-algo');
+    if (algoSelect) {
+      algoSelect.onchange = () => {
+        const qGroup = document.getElementById('quantum-group');
+        if (qGroup) {
+          qGroup.style.display = (algoSelect.value === 'RR') ? 'block' : 'none';
+        }
+      };
+    }
+
+    const btnRun = document.getElementById('btn-run-scheduler');
+    if (btnRun) {
+      btnRun.onclick = () => this.runSimulation();
+    }
+
+    const btnCompare = document.getElementById('btn-compare-all-sched');
+    if (btnCompare) {
+      btnCompare.onclick = () => this.compareAll();
     }
   },
 
-  renderProcessTable() {
-    const tbody = document.getElementById('scheduler-input-table-body');
+  renderProcessQueue() {
+    const tbody = document.getElementById('proc-queue-body');
     if (!tbody) return;
+
+    if (this.processes.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted p-2">Queue is empty. Add a process.</td></tr>';
+      return;
+    }
 
     tbody.innerHTML = this.processes.map((p, idx) => `
       <tr>
-        <td><input type="text" class="input" style="width:70px;" value="${p.pid}" onchange="window.Scheduler.updateProc(${idx}, 'pid', this.value)"></td>
-        <td><input type="number" class="input" style="width:70px;" min="0" value="${p.arrival_time}" onchange="window.Scheduler.updateProc(${idx}, 'arrival_time', parseInt(this.value, 10))"></td>
-        <td><input type="number" class="input" style="width:70px;" min="1" value="${p.burst_time}" onchange="window.Scheduler.updateProc(${idx}, 'burst_time', parseInt(this.value, 10))"></td>
-        <td><input type="number" class="input" style="width:70px;" value="${p.priority}" onchange="window.Scheduler.updateProc(${idx}, 'priority', parseInt(this.value, 10))"></td>
+        <td class="font-mono"><strong>${this.escape(p.pid)}</strong></td>
+        <td>${p.arrival_time}</td>
+        <td>${p.burst_time}</td>
+        <td>${p.priority}</td>
         <td>
-          <button class="btn btn-danger btn-sm" onclick="window.Scheduler.removeProc(${idx})">&times;</button>
+          <button class="btn btn-danger btn-sm" onclick="window.schedulerModule.removeProcess(${idx})">&times;</button>
         </td>
       </tr>
     `).join('');
   },
 
-  updateProc(idx, field, val) {
-    if (this.processes[idx]) {
-      this.processes[idx][field] = val;
-    }
-  },
+  addProcess() {
+    const pidInput = document.getElementById('proc-pid');
+    const arrInput = document.getElementById('proc-arrival');
+    const burstInput = document.getElementById('proc-burst');
+    const prioInput = document.getElementById('proc-priority');
 
-  removeProc(idx) {
-    if (this.processes.length <= 1) {
-      window.App.toast('Must have at least one process.', 'warning');
+    const pid = pidInput ? pidInput.value.trim() : `P${this.processes.length + 1}`;
+    const arrival = arrInput ? parseInt(arrInput.value, 10) || 0 : 0;
+    const burst = burstInput ? parseInt(burstInput.value, 10) || 1 : 1;
+    const priority = prioInput ? parseInt(prioInput.value, 10) || 1 : 1;
+
+    if (!pid) {
+      window.app.showToast('Please specify a PID', 'warning');
       return;
     }
+
+    this.processes.push({ pid, arrival_time: arrival, burst_time: burst, priority });
+    this.renderProcessQueue();
+
+    if (pidInput) pidInput.value = `P${this.processes.length + 1}`;
+    window.app.showToast(`Process ${pid} added to queue.`, 'info');
+  },
+
+  removeProcess(idx) {
     this.processes.splice(idx, 1);
-    this.renderProcessTable();
+    this.renderProcessQueue();
   },
 
   async runSimulation() {
-    const algo = document.getElementById('scheduler-algo-select').value;
-    const quantum = parseInt(document.getElementById('scheduler-quantum-input').value, 10) || 2;
+    if (this.processes.length === 0) {
+      window.app.showToast('Please add at least one process to the queue', 'warning');
+      return;
+    }
+
+    const algoSelect = document.getElementById('sched-algo');
+    const quantumInput = document.getElementById('sched-quantum');
+
+    const algo = algoSelect ? algoSelect.value : 'FCFS';
+    const quantum = quantumInput ? parseInt(quantumInput.value, 10) || 2 : 2;
 
     try {
-      const data = await API.simulateScheduler(this.processes, quantum, algo);
-      const outContainer = document.getElementById('scheduler-results-container');
+      const res = await window.api.request('/api/scheduler/simulate', {
+        method: 'POST',
+        body: JSON.stringify({
+          processes: this.processes,
+          algorithm: algo,
+          time_quantum: quantum
+        })
+      });
 
-      if (algo === 'ALL' && data.comparison) {
-        outContainer.innerHTML = data.comparison.map(r => this.renderSingleResult(r)).join('<hr style="border:0; border-top:1px solid var(--border-color); margin: 1.5rem 0;">');
-      } else if (data.result) {
-        outContainer.innerHTML = this.renderSingleResult(data.result);
-      }
-      window.App.toast('Scheduling calculation completed.', 'success');
+      const r = res.result;
+      if (!r) throw new Error('No simulation result returned');
+
+      this.displayResults(r);
+      const compareBox = document.getElementById('sched-compare-container');
+      if (compareBox) compareBox.style.display = 'none';
+      window.app.showToast(`${r.algorithm} simulation finished!`, 'success');
     } catch (err) {
-      window.App.toast(`Scheduler error: ${err.message}`, 'error');
+      window.app.showToast('Scheduler simulation failed: ' + err.message, 'error');
     }
   },
 
-  renderSingleResult(r) {
-    const colors = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4'];
+  async compareAll() {
+    if (this.processes.length === 0) {
+      window.app.showToast('Add processes to compare algorithms', 'warning');
+      return;
+    }
 
-    const totalTime = r.total_time || (r.gantt_chart[r.gantt_chart.length - 1]?.end_time) || 1;
+    const quantumInput = document.getElementById('sched-quantum');
+    const quantum = quantumInput ? parseInt(quantumInput.value, 10) || 2 : 2;
 
-    let ganttBars = r.gantt_chart.map((g, idx) => {
-      const duration = g.end_time - g.start_time;
-      const pct = (duration / totalTime) * 100;
-      const color = g.is_idle ? '#334155' : colors[idx % colors.length];
+    try {
+      const res = await window.api.request('/api/scheduler/simulate', {
+        method: 'POST',
+        body: JSON.stringify({
+          processes: this.processes,
+          algorithm: 'ALL',
+          time_quantum: quantum
+        })
+      });
 
-      return `
-        <div class="gantt-bar ${g.is_idle ? 'idle' : ''}" style="width: ${pct}%; background-color: ${color};" title="${g.pid}: [${g.start_time} - ${g.end_time}]">
-          ${g.pid}
-        </div>
-      `;
-    }).join('');
+      const list = res.comparison || [];
+      const compareBox = document.getElementById('sched-compare-container');
+      const compareContent = document.getElementById('sched-compare-content');
 
-    let procRows = r.processes.map(p => `
-      <tr>
-        <td><strong>${p.pid}</strong></td>
-        <td>${p.arrival_time}</td>
-        <td>${p.burst_time}</td>
-        <td>${p.priority}</td>
-        <td>${p.completion_time}</td>
-        <td>${p.turnaround_time}</td>
-        <td>${p.waiting_time}</td>
-        <td>${p.response_time}</td>
-      </tr>
-    `).join('');
-
-    return `
-      <div style="margin-bottom: 1rem;">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-          <h4 style="color: var(--text-main);">${r.algorithm} ${r.time_quantum ? '(Quantum: ' + r.time_quantum + ')' : ''}</h4>
-          <span style="font-size:0.8rem; color:var(--text-muted);">
-            Avg Turnaround: <strong style="color:var(--accent-blue);">${r.avg_turnaround_time.toFixed(2)}</strong> | 
-            Avg Waiting: <strong style="color:var(--status-success);">${r.avg_waiting_time.toFixed(2)}</strong> | 
-            Idle CPU: <strong>${r.idle_time}</strong>
-          </span>
-        </div>
-
-        <div class="gantt-chart">
-          ${ganttBars}
-        </div>
-
-        <div class="table-wrap">
-          <table class="data-table" style="font-size:0.75rem;">
+      if (compareBox && compareContent) {
+        compareBox.style.display = 'block';
+        compareContent.innerHTML = `
+          <table class="data-table">
             <thead>
               <tr>
-                <th>PID</th>
-                <th>Arrival</th>
-                <th>Burst</th>
-                <th>Priority</th>
-                <th>Completion</th>
-                <th>Turnaround</th>
-                <th>Waiting</th>
-                <th>Response</th>
+                <th>Algorithm</th>
+                <th>Avg Turnaround Time</th>
+                <th>Avg Waiting Time</th>
+                <th>CPU Utilization</th>
+                <th>Total Time</th>
               </tr>
             </thead>
             <tbody>
-              ${procRows}
+              ${list.map(c => `
+                <tr>
+                  <td><strong class="highlight-blue">${c.algorithm}</strong></td>
+                  <td class="font-mono">${(c.average_turnaround_time || 0).toFixed(2)}</td>
+                  <td class="font-mono highlight-teal"><strong>${(c.average_waiting_time || 0).toFixed(2)}</strong></td>
+                  <td>${(c.cpu_utilization || 100).toFixed(1)}%</td>
+                  <td>${c.total_execution_time || 0}</td>
+                </tr>
+              `).join('')}
             </tbody>
           </table>
-        </div>
-      </div>
-    `;
+        `;
+      }
+
+      if (list.length > 0) {
+        this.displayResults(list[0]);
+      }
+      window.app.showToast('Algorithm comparison complete!', 'success');
+    } catch (err) {
+      window.app.showToast('Comparison failed: ' + err.message, 'error');
+    }
+  },
+
+  displayResults(r) {
+    const avgTAT = document.getElementById('sched-avg-turnaround');
+    const avgWT = document.getElementById('sched-avg-waiting');
+    const cpuUtil = document.getElementById('sched-cpu-util');
+
+    if (avgTAT) avgTAT.textContent = `${(r.average_turnaround_time || 0).toFixed(2)} units`;
+    if (avgWT) avgWT.textContent = `${(r.average_waiting_time || 0).toFixed(2)} units`;
+    if (cpuUtil) cpuUtil.textContent = `${(r.cpu_utilization || 100).toFixed(1)}%`;
+
+    // Render Gantt chart
+    const ganttContainer = document.getElementById('gantt-chart-container');
+    const labelsContainer = document.getElementById('sched-timeline-labels');
+
+    if (ganttContainer) {
+      ganttContainer.innerHTML = '';
+      const totalTime = r.total_execution_time || 1;
+
+      (r.gantt_chart || []).forEach(bar => {
+        const duration = bar.end_time - bar.start_time;
+        const widthPct = Math.max(1, (duration / totalTime) * 100);
+
+        const el = document.createElement('div');
+        el.className = `gantt-bar ${bar.is_idle ? 'idle' : ''}`;
+        el.style.width = `${widthPct}%`;
+        el.style.backgroundColor = bar.is_idle ? '#334155' : this.getPidColor(bar.pid);
+        el.textContent = bar.is_idle ? 'IDLE' : bar.pid;
+        el.title = `${bar.pid}: [${bar.start_time} -> ${bar.end_time}]`;
+        ganttContainer.appendChild(el);
+      });
+    }
+
+    if (labelsContainer) {
+      labelsContainer.innerHTML = `<span>0</span><span>Total Execution Time: ${r.total_execution_time || 0} units</span>`;
+    }
+
+    // Render process metrics table
+    const tbody = document.getElementById('sched-metrics-body');
+    if (tbody) {
+      tbody.innerHTML = (r.metrics || []).map(m => `
+        <tr>
+          <td class="font-mono"><strong>${this.escape(m.pid)}</strong></td>
+          <td>${m.arrival_time || 0}</td>
+          <td>${m.burst_time || 0}</td>
+          <td class="font-mono">${m.completion_time || 0}</td>
+          <td class="font-mono highlight-blue">${m.turnaround_time || 0}</td>
+          <td class="font-mono highlight-teal"><strong>${m.waiting_time || 0}</strong></td>
+        </tr>
+      `).join('');
+    }
+  },
+
+  getPidColor(pid) {
+    const palette = ['#3b82f6', '#14b8a6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#06b6d4'];
+    let hash = 0;
+    for (let i = 0; i < pid.length; i++) {
+      hash = pid.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return palette[Math.abs(hash) % palette.length];
+  },
+
+  escape(s) {
+    if (!s) return '';
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 };
+
+window.Scheduler = window.schedulerModule;

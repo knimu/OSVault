@@ -1,24 +1,57 @@
-import { API } from './api.js';
-import { Dashboard } from './dashboard.js';
-import { Blocks } from './blocks.js';
+/**
+ * OSVault - Virtual Filesystem Module
+ */
 
-export const Files = {
-  activeFile: null,
+window.filesModule = {
+  isEditing: false,
 
-  async init() {
+  init() {
     this.bindEvents();
-    await this.refresh();
+    this.refresh();
   },
 
   bindEvents() {
-    const searchInput = document.getElementById('files-search-input');
-    if (searchInput) {
-      searchInput.addEventListener('input', () => this.refresh(searchInput.value));
+    // Open Create Modal
+    const btnCreate = document.getElementById('btn-create-file-modal');
+    if (btnCreate) {
+      btnCreate.onclick = () => this.openCreateModal();
     }
 
-    const btnNew = document.getElementById('btn-new-file');
-    if (btnNew) {
-      btnNew.addEventListener('click', () => this.openCreateModal());
+    // Refresh Files
+    const btnRefresh = document.getElementById('btn-refresh-files');
+    if (btnRefresh) {
+      btnRefresh.onclick = () => this.refresh();
+    }
+
+    // Live search
+    const searchInput = document.getElementById('file-search-input');
+    if (searchInput) {
+      let timeout = null;
+      searchInput.oninput = () => {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => this.refresh(searchInput.value), 250);
+      };
+    }
+
+    // Modal buttons
+    const btnSave = document.getElementById('btn-save-file');
+    if (btnSave) {
+      btnSave.onclick = () => this.saveFile();
+    }
+
+    const btnCancel = document.getElementById('btn-cancel-modal');
+    if (btnCancel) {
+      btnCancel.onclick = () => this.closeModal();
+    }
+
+    const btnClose = document.getElementById('btn-close-modal');
+    if (btnClose) {
+      btnClose.onclick = () => this.closeModal();
+    }
+
+    const btnCloseView = document.getElementById('btn-close-view-modal');
+    if (btnCloseView) {
+      btnCloseView.onclick = () => this.closeViewModal();
     }
   },
 
@@ -27,106 +60,170 @@ export const Files = {
     if (!tbody) return;
 
     try {
-      const data = await API.listFiles(query);
-      if (data.files.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-dim); padding: 2rem;">No files found in logical block storage.</td></tr>`;
+      const data = await window.api.listFiles(query);
+      const files = data.files || [];
+
+      const countBadge = document.getElementById('file-count-badge');
+      if (countBadge) {
+        countBadge.textContent = `${files.length} file${files.length === 1 ? '' : 's'} stored`;
+      }
+
+      if (files.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted p-4">No files found. Click "<strong>+ Create File</strong>" above to store data.</td></tr>`;
         return;
       }
 
-      tbody.innerHTML = data.files.map(f => `
-        <tr>
-          <td><strong style="color: var(--accent-blue);">${this.escape(f.name)}</strong></td>
-          <td>${f.size.toLocaleString()} B</td>
-          <td><span class="status-badge" style="background:#1e3a5f; color:#93c5fd; border-color:#3b82f6;">${f.block_count} blk</span></td>
-          <td style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted);">${f.block_ids.slice(0, 8).join(', ')}${f.block_ids.length > 8 ? '...' : ''}</td>
-          <td style="color: var(--text-dim); font-size: 0.75rem;">${f.updated_at}</td>
-          <td>
-            <div style="display: flex; gap: 4px;">
-              <button class="btn btn-secondary btn-sm" onclick="window.Files.viewFile('${this.escape(f.name)}')">View</button>
-              <button class="btn btn-secondary btn-sm" onclick="window.Files.editFile('${this.escape(f.name)}')">Edit</button>
-              <button class="btn btn-secondary btn-sm" onclick="window.Files.renameFile('${this.escape(f.name)}')">Rename</button>
-              <button class="btn btn-danger btn-sm" onclick="window.Files.deleteFile('${this.escape(f.name)}')">Delete</button>
-            </div>
-          </td>
-        </tr>
-      `).join('');
+      tbody.innerHTML = files.map(f => {
+        const blockIds = (f.block_ids && f.block_ids.length > 0) ? f.block_ids.join(', ') : '-';
+        const createdStr = f.created_at ? new Date(f.created_at * 1000).toLocaleString() : '-';
+        const updatedStr = f.updated_at ? new Date(f.updated_at * 1000).toLocaleString() : '-';
+        const safeName = this.escape(f.name);
+
+        return `
+          <tr>
+            <td class="font-mono text-muted small">#${f.id}</td>
+            <td><strong class="highlight-blue">${safeName}</strong></td>
+            <td class="font-mono">${(f.size || 0).toLocaleString()} B</td>
+            <td><span class="badge badge-primary">${f.block_count || 1} blk</span> <span class="text-muted small">(${blockIds})</span></td>
+            <td class="text-muted small">${createdStr}</td>
+            <td class="text-muted small">${updatedStr}</td>
+            <td style="text-align: right;">
+              <div class="d-flex justify-end gap-1">
+                <button class="btn btn-secondary btn-sm" onclick="window.filesModule.viewFile('${safeName}')">View</button>
+                <button class="btn btn-secondary btn-sm" onclick="window.filesModule.editFile('${safeName}')">Edit</button>
+                <button class="btn btn-danger btn-sm" onclick="window.filesModule.deleteFile('${safeName}')">Delete</button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
     } catch (err) {
-      tbody.innerHTML = `<tr><td colspan="6" style="color: var(--status-danger); text-align: center;">Error loading files: ${err.message}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="7" class="text-center text-danger p-4">Error loading files: ${err.message}</td></tr>`;
     }
   },
 
   openCreateModal() {
-    const name = prompt('Enter new filename (e.g., sample.txt):');
-    if (!name) return;
-    const content = prompt('Enter initial file content (optional):') || '';
+    this.isEditing = false;
+    const modal = document.getElementById('file-modal');
+    const title = document.getElementById('modal-title');
+    const nameInput = document.getElementById('file-name');
+    const contentInput = document.getElementById('file-content');
 
-    API.createFile(name, content)
-      .then(() => {
-        window.App.toast(`File '${name}' created successfully.`, 'success');
-        this.refresh();
-        Dashboard.refresh();
-        Blocks.refresh();
-      })
-      .catch(err => window.App.toast(`Failed to create file: ${err.message}`, 'error'));
-  },
-
-  async viewFile(name) {
-    try {
-      const f = await API.readFile(name);
-      alert(`[FILE: ${f.name}]\nSize: ${f.size} bytes (${f.block_count} blocks)\nBlock IDs: [${f.block_ids.join(', ')}]\n\n--- Content ---\n${f.content}`);
-    } catch (err) {
-      window.App.toast(`Read failed: ${err.message}`, 'error');
+    if (title) title.textContent = 'Create Virtual File';
+    if (nameInput) {
+      nameInput.value = '';
+      nameInput.removeAttribute('disabled');
     }
+    if (contentInput) contentInput.value = '';
+    if (modal) modal.classList.add('active');
   },
 
   async editFile(name) {
     try {
-      const f = await API.readFile(name);
-      const newContent = prompt(`Edit content for '${f.name}':`, f.content);
-      if (newContent === null) return;
+      const f = await window.api.readFile(name);
+      this.isEditing = true;
+      const modal = document.getElementById('file-modal');
+      const title = document.getElementById('modal-title');
+      const nameInput = document.getElementById('file-name');
+      const contentInput = document.getElementById('file-content');
 
-      await API.writeFile(name, newContent);
-      window.App.toast(`File '${name}' updated successfully.`, 'success');
-      this.refresh();
-      Dashboard.refresh();
-      Blocks.refresh();
+      if (title) title.textContent = `Edit File: ${f.name}`;
+      if (nameInput) {
+        nameInput.value = f.name;
+        nameInput.setAttribute('disabled', 'true');
+      }
+      if (contentInput) contentInput.value = f.content || '';
+      if (modal) modal.classList.add('active');
     } catch (err) {
-      window.App.toast(`Write failed: ${err.message}`, 'error');
+      window.app.showToast('Could not load file for editing: ' + err.message, 'error');
     }
   },
 
-  async renameFile(oldName) {
-    const newName = prompt(`Enter new name for '${oldName}':`, oldName);
-    if (!newName || newName === oldName) return;
+  closeModal() {
+    const modal = document.getElementById('file-modal');
+    if (modal) modal.classList.remove('active');
+  },
+
+  async saveFile() {
+    const nameInput = document.getElementById('file-name');
+    const contentInput = document.getElementById('file-content');
+    const name = nameInput ? nameInput.value.trim() : '';
+    const content = contentInput ? contentInput.value : '';
+
+    if (!name) {
+      window.app.showToast('Please enter a valid filename', 'warning');
+      return;
+    }
 
     try {
-      await API.renameFile(oldName, newName);
-      window.App.toast(`Renamed '${oldName}' to '${newName}'.`, 'success');
+      if (this.isEditing) {
+        await window.api.writeFile(name, content);
+        window.app.showToast(`File '${name}' updated successfully!`, 'success');
+      } else {
+        await window.api.createFile(name, content);
+        window.app.showToast(`File '${name}' created and allocated to storage!`, 'success');
+      }
+
+      this.closeModal();
       this.refresh();
-      Dashboard.refresh();
-      Blocks.refresh();
+      if (window.dashboardModule) window.dashboardModule.refresh();
+      if (window.blocksModule) window.blocksModule.refresh();
     } catch (err) {
-      window.App.toast(`Rename failed: ${err.message}`, 'error');
+      window.app.showToast(err.message, 'error');
     }
+  },
+
+  async viewFile(name) {
+    try {
+      const f = await window.api.readFile(name);
+      const modal = document.getElementById('file-view-modal');
+      const title = document.getElementById('view-modal-title');
+      const meta = document.getElementById('view-file-meta');
+      const content = document.getElementById('view-file-content');
+
+      if (title) title.textContent = `File Inspector: ${f.name}`;
+      if (meta) {
+        const blks = (f.block_ids && f.block_ids.length > 0) ? f.block_ids.join(', ') : 'None';
+        meta.innerHTML = `
+          <strong>Size:</strong> ${(f.size || 0).toLocaleString()} bytes &bull; 
+          <strong>Allocated Blocks:</strong> ${f.block_count || 1} &bull; 
+          <strong>Sector IDs:</strong> <code>[ ${blks} ]</code>
+        `;
+      }
+      if (content) {
+        content.textContent = f.content || '(File is empty)';
+      }
+      if (modal) modal.classList.add('active');
+    } catch (err) {
+      window.app.showToast('Could not read file: ' + err.message, 'error');
+    }
+  },
+
+  closeViewModal() {
+    const modal = document.getElementById('file-view-modal');
+    if (modal) modal.classList.remove('active');
   },
 
   async deleteFile(name) {
-    if (!confirm(`Are you sure you want to delete file '${name}'? All logical blocks will be freed.`)) return;
+    if (!confirm(`Are you sure you want to delete '${name}' and reclaim its storage blocks?`)) {
+      return;
+    }
 
     try {
-      await API.deleteFile(name);
-      window.App.toast(`File '${name}' deleted.`, 'success');
+      await window.api.deleteFile(name);
+      window.app.showToast(`File '${name}' deleted and blocks reclaimed.`, 'info');
       this.refresh();
-      Dashboard.refresh();
-      Blocks.refresh();
+      if (window.dashboardModule) window.dashboardModule.refresh();
+      if (window.blocksModule) window.blocksModule.refresh();
     } catch (err) {
-      window.App.toast(`Delete failed: ${err.message}`, 'error');
+      window.app.showToast(err.message, 'error');
     }
   },
 
-  escape(str) {
-    return (str || '').replace(/[&<>'"]/g, tag => ({
-      '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
-    }[tag] || tag));
+  escape(s) {
+    if (!s) return '';
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 };
+
+window.Files = window.filesModule;

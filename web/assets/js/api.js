@@ -1,8 +1,9 @@
 /**
- * OSVault Centralized API Client
+ * OSVault Centralized API Client (Plain JS / No ES6 module exports for maximum browser compatibility)
  * Wraps all C++ Crow backend REST endpoints.
  */
-export const API = {
+
+window.api = {
   baseUrl: '',
 
   async request(endpoint, options = {}) {
@@ -23,11 +24,12 @@ export const API = {
 
       const data = await response.json().catch(() => ({}));
 
-      if (!response.ok) {
+      if (!response.ok || data.ok === false) {
         const errorMsg = data.error || `HTTP ${response.status}: ${response.statusText}`;
         throw new Error(errorMsg);
       }
 
+      data.success = true;
       return data;
     } catch (err) {
       console.error(`[API Error] ${options.method || 'GET'} ${endpoint}:`, err);
@@ -38,7 +40,7 @@ export const API = {
   // System & Overview
   getHealth() { return this.request('/api/health'); },
   getMetrics() { return this.request('/api/metrics'); },
-  resetDemoData(confirmToken) {
+  resetDemoData(confirmToken = 'RESET_CONFIRM') {
     return this.request('/api/system/reset-demo-data', {
       method: 'POST',
       body: JSON.stringify({ confirm: confirmToken })
@@ -50,7 +52,9 @@ export const API = {
     const q = query ? `?q=${encodeURIComponent(query)}` : '';
     return this.request(`/api/files${q}`);
   },
-  readFile(filename) { return this.request(`/api/files/${encodeURIComponent(filename)}`); },
+  readFile(name) {
+    return this.request(`/api/files/${encodeURIComponent(name)}`);
+  },
   createFile(name, content = '') {
     return this.request('/api/files', {
       method: 'POST',
@@ -75,78 +79,78 @@ export const API = {
     });
   },
 
-  // Block Allocator Visualizer
+  // Blocks
   getBlocks() { return this.request('/api/blocks'); },
-  getBlock(blockId) { return this.request(`/api/blocks/${blockId}`); },
+  getBlock(id) { return this.request(`/api/blocks/${id}`); },
 
   // Cache & Paging
   getCacheStats() { return this.request('/api/cache/stats'); },
-  setCacheConfig(policy, capacity) {
+  setCacheConfig(capacity, policy) {
     return this.request('/api/cache/config', {
       method: 'POST',
-      body: JSON.stringify({ policy, capacity })
+      body: JSON.stringify({ capacity, policy })
     });
   },
-  clearCache() { return this.request('/api/cache/clear', { method: 'POST' }); },
-  simulatePaging(sequence, frames, algorithm = 'BOTH') {
+  clearCache() {
+    return this.request('/api/cache/clear', { method: 'POST' });
+  },
+  simulatePaging(sequence, frames = 3, policy = 'FIFO') {
     return this.request('/api/cache/simulate', {
       method: 'POST',
-      body: JSON.stringify({ sequence, frames, algorithm })
+      body: JSON.stringify({ sequence, frames, policy })
     });
   },
 
-  // Process Scheduling
-  simulateScheduler(processes, timeQuantum = 2, algorithm = 'ALL') {
+  // CPU Scheduler
+  simulateScheduler(processes, algorithm = 'FCFS', quantum = 2) {
     return this.request('/api/scheduler/simulate', {
       method: 'POST',
-      body: JSON.stringify({ processes, time_quantum: timeQuantum, algorithm })
+      body: JSON.stringify({ processes, algorithm, quantum })
     });
   },
 
   // Memory Management
   getMemoryState() { return this.request('/api/memory/state'); },
-  allocateMemory(processName, size, strategy = 'FIRST_FIT') {
+  allocateMemory(processId, sizeBytes) {
     return this.request('/api/memory/allocate', {
       method: 'POST',
-      body: JSON.stringify({ process_name: processName, size, strategy })
+      body: JSON.stringify({ process_id: processId, size_bytes: sizeBytes })
     });
   },
-  deallocateMemory(param) {
+  deallocateMemory(blockId) {
     return this.request('/api/memory/deallocate', {
       method: 'POST',
-      body: JSON.stringify(typeof param === 'number' ? { partition_id: param } : { process_name: param })
+      body: JSON.stringify({ block_id: blockId })
     });
   },
-  resetMemory(totalSize = 1024) {
-    return this.request('/api/memory/reset', {
-      method: 'POST',
-      body: JSON.stringify({ total_size: totalSize })
-    });
+  resetMemory() {
+    return this.request('/api/memory/reset', { method: 'POST' });
   },
 
   // Synchronization
   getCsState() { return this.request('/api/sync/cs'); },
-  stepCs(threadId) {
+  stepCs(processId) {
     return this.request('/api/sync/cs/step', {
       method: 'POST',
-      body: JSON.stringify({ thread_id: threadId })
+      body: JSON.stringify({ process_id: processId })
     });
   },
-  resetCs() { return this.request('/api/sync/cs/reset', { method: 'POST' }); },
+  resetCs() {
+    return this.request('/api/sync/cs/reset', { method: 'POST' });
+  },
 
   getPcState() { return this.request('/api/sync/pc'); },
-  producePc(item) {
+  producePc(item = 'Item') {
     return this.request('/api/sync/pc/produce', {
       method: 'POST',
       body: JSON.stringify({ item })
     });
   },
-  consumePc() { return this.request('/api/sync/pc/consume', { method: 'POST' }); },
-  resetPc(capacity = 5) {
-    return this.request('/api/sync/pc/reset', {
-      method: 'POST',
-      body: JSON.stringify({ capacity })
-    });
+  consumePc() {
+    return this.request('/api/sync/pc/consume', { method: 'POST' });
+  },
+  resetPc() {
+    return this.request('/api/sync/pc/reset', { method: 'POST' });
   },
 
   getRwState() { return this.request('/api/sync/rw'); },
@@ -171,7 +175,7 @@ export const API = {
   stopWriteRw(writerId, value) {
     return this.request('/api/sync/rw/write/stop', {
       method: 'POST',
-      body: JSON.stringify({ writer_id: writerId, value })
+      body: JSON.stringify({ writer_id: writerId, value: parseInt(value, 10) })
     });
   },
   resetRw() { return this.request('/api/sync/rw/reset', { method: 'POST' }); },
@@ -185,18 +189,20 @@ export const API = {
   },
   resetDp() { return this.request('/api/sync/dp/reset', { method: 'POST' }); },
 
-  // Deadlock Detection
-  analyzeDeadlock(processes, resources, available, allocation, request) {
+  // Deadlock Detection & Banker's Algorithm
+  analyzeDeadlock(payload) {
     return this.request('/api/deadlock/analyze', {
       method: 'POST',
-      body: JSON.stringify({ processes, resources, available, allocation, request })
+      body: JSON.stringify(payload)
     });
   },
-  getDeadlockPreset(type) { return this.request(`/api/deadlock/preset/${type}`); },
-  recoverDeadlock(state, terminateProcess) {
+  getDeadlockPreset(name) {
+    return this.request(`/api/deadlock/preset/${encodeURIComponent(name)}`);
+  },
+  recoverDeadlock(processId) {
     return this.request('/api/deadlock/recover', {
       method: 'POST',
-      body: JSON.stringify({ state, terminate_process: terminateProcess })
+      body: JSON.stringify({ terminate_process_id: processId })
     });
   },
 
@@ -208,7 +214,7 @@ export const API = {
       body: JSON.stringify({ data })
     });
   },
-  readPipe(bytes = 256) {
+  readPipe(bytes = 64) {
     return this.request('/api/ipc/pipe/read', {
       method: 'POST',
       body: JSON.stringify({ bytes })
@@ -232,16 +238,13 @@ export const API = {
   clearMq() { return this.request('/api/ipc/mq/clear', { method: 'POST' }); },
 
   getShm() { return this.request('/api/ipc/shm'); },
-  readShm(reader) {
-    return this.request('/api/ipc/shm/read', {
-      method: 'POST',
-      body: JSON.stringify({ reader })
-    });
+  readShm() {
+    return this.request('/api/ipc/shm/read', { method: 'POST' });
   },
-  writeShm(writer, data) {
+  writeShm(data) {
     return this.request('/api/ipc/shm/write', {
       method: 'POST',
-      body: JSON.stringify({ writer, data })
+      body: JSON.stringify({ data })
     });
   },
   lockShm(process) {
@@ -256,33 +259,33 @@ export const API = {
       body: JSON.stringify({ process })
     });
   },
-  exchangeSocket(client, requestStr) {
+  exchangeSocket(message) {
     return this.request('/api/ipc/exchange', {
       method: 'POST',
-      body: JSON.stringify({ client, request: requestStr })
+      body: JSON.stringify({ message })
     });
   },
   getIpcHistory() { return this.request('/api/ipc/history'); },
 
-  // Logical Clocks
+  // Distributed Logical Clocks
   getClockNodes() { return this.request('/api/clocks/nodes'); },
   getClockTimeline() { return this.request('/api/clocks/timeline'); },
-  triggerLocalEvent(nodeId, description) {
+  triggerLocalEvent(nodeId, desc) {
     return this.request('/api/clocks/local-event', {
       method: 'POST',
-      body: JSON.stringify({ node_id: nodeId, description })
+      body: JSON.stringify({ node_id: nodeId, description: desc })
     });
   },
-  sendClockMessage(fromNode, toNode, message) {
+  sendClockMessage(fromNode, toNode, msg) {
     return this.request('/api/clocks/send-message', {
       method: 'POST',
-      body: JSON.stringify({ from_node: fromNode, to_node: toNode, message })
+      body: JSON.stringify({ from_node: fromNode, to_node: toNode, message: msg })
     });
   },
-  resetClocks(nodeCount = 3) {
+  resetClocks(count = 3) {
     return this.request('/api/clocks/reset', {
       method: 'POST',
-      body: JSON.stringify({ node_count: nodeCount })
+      body: JSON.stringify({ node_count: count })
     });
   },
   checkConcurrency(v1, v2) {
@@ -303,7 +306,7 @@ export const API = {
   },
   clearLogs() { return this.request('/api/logs/clear', { method: 'POST' }); },
 
-  // Integrity & Recovery
+  // Crash Consistency & Recovery
   checkIntegrity() { return this.request('/api/integrity/check'); },
   fixOrphanBlocks() { return this.request('/api/integrity/fix-orphans', { method: 'POST' }); },
   simulateInterruptedWrite(filename) {
@@ -317,3 +320,5 @@ export const API = {
   },
   getRecoveryHistory() { return this.request('/api/recovery/history'); }
 };
+
+window.API = window.api;

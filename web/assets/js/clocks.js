@@ -3,7 +3,7 @@
  * Visualizes distributed timestamps, message passing causal dependencies, and concurrency checks.
  */
 
-const clocksModule = {
+window.clocksModule = {
   init() {
     this.bindEvents();
     this.refresh();
@@ -261,3 +261,5 @@ const clocksModule = {
     return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 };
+
+window.Clocks = window.clocksModule;

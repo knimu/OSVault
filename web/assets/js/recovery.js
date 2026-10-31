@@ -4,7 +4,7 @@
  * and tests WAL crash-recovery and restart persistence.
  */
 
-const recoveryModule = {
+window.recoveryModule = {
   init() {
     this.bindEvents();
     this.checkIntegrity();
@@ -209,3 +209,5 @@ const recoveryModule = {
     return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 };
+
+window.Recovery = window.recoveryModule;

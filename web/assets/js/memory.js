@@ -1,106 +1,159 @@
-import { API } from './api.js';
+/**
+ * OSVault - Dynamic Memory Manager Module
+ */
 
-export const Memory = {
-  async init() {
+window.memoryModule = {
+  currentStrategy: 'FIRST_FIT',
+
+  init() {
     this.bindEvents();
-    await this.refresh();
+    this.refresh();
   },
 
   bindEvents() {
-    const btnAlloc = document.getElementById('btn-alloc-memory');
+    const btnAlloc = document.getElementById('btn-mem-allocate');
     if (btnAlloc) {
-      btnAlloc.addEventListener('click', () => this.allocate());
+      btnAlloc.onclick = () => this.allocate();
     }
 
-    const btnReset = document.getElementById('btn-reset-memory');
+    const btnReset = document.getElementById('btn-mem-reset');
     if (btnReset) {
-      btnReset.addEventListener('click', () => this.reset());
+      btnReset.onclick = () => this.resetMemory();
+    }
+
+    const btnStrategy = document.getElementById('btn-apply-mem-strategy');
+    if (btnStrategy) {
+      btnStrategy.onclick = () => {
+        const sel = document.getElementById('mem-strategy');
+        this.currentStrategy = sel ? sel.value : 'FIRST_FIT';
+        window.app.showToast(`Memory allocation strategy set to ${this.currentStrategy}`, 'info');
+      };
     }
   },
 
   async refresh() {
     try {
-      const data = await API.getMemoryState();
-      this.renderState(data.state);
+      const res = await window.api.request('/api/memory/state');
+      const st = res.state;
+      if (!st) return;
+
+      const usedEl = document.getElementById('mem-used-stat');
+      const freeEl = document.getElementById('mem-free-stat');
+      const fragEl = document.getElementById('mem-ext-frag-stat');
+
+      if (usedEl) usedEl.textContent = `${st.allocated_size || 0} KB`;
+      if (freeEl) freeEl.textContent = `${st.free_size || 1024} KB`;
+      if (fragEl) fragEl.textContent = `${st.external_fragmentation || 0} KB`;
+
+      // Render physical memory bar
+      const bar = document.getElementById('memory-map-container');
+      if (bar) {
+        bar.innerHTML = '';
+        const total = st.total_size || 1024;
+
+        (st.partitions || []).forEach(p => {
+          const pct = Math.max(2, (p.size / total) * 100);
+          const seg = document.createElement('div');
+          seg.className = `memory-partition-segment ${p.is_allocated ? 'allocated' : 'free'}`;
+          seg.style.width = `${pct}%`;
+          seg.title = `Partition #${p.id}: [${p.start_address}..${p.start_address + p.size - 1}] (${p.size} KB) - ${p.is_allocated ? p.process_name : 'FREE'}`;
+          seg.innerHTML = `<span>${p.is_allocated ? p.process_name : 'FREE'}</span><span class="small font-mono">${p.size}K</span>`;
+          bar.appendChild(seg);
+        });
+      }
+
+      // Render table
+      const tbody = document.getElementById('memory-blocks-body');
+      if (tbody) {
+        if (!st.partitions || st.partitions.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted p-3">Memory fully free (1024 KB).</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = st.partitions.map(p => `
+          <tr>
+            <td class="font-mono text-muted small">#${p.id}</td>
+            <td><strong>${p.is_allocated ? this.escape(p.process_name) : '<span class="text-muted">(Free Hole)</span>'}</strong></td>
+            <td class="font-mono">0x${(p.start_address || 0).toString(16).toUpperCase().padStart(4, '0')} (${p.start_address} KB)</td>
+            <td class="font-mono">${p.size} KB</td>
+            <td>
+              ${p.is_allocated ? '<span class="badge badge-success">ALLOCATED</span>' : '<span class="badge badge-secondary">FREE</span>'}
+            </td>
+            <td>
+              ${p.is_allocated ? `<button class="btn btn-danger btn-sm" onclick="window.memoryModule.deallocate(${p.id})">Deallocate</button>` : '-'}
+            </td>
+          </tr>
+        `).join('');
+      }
     } catch (err) {
       console.error('Failed to load memory state:', err);
     }
   },
 
-  renderState(state) {
-    document.getElementById('mem-total').textContent = `${state.total_memory} KB`;
-    document.getElementById('mem-allocated').textContent = `${state.allocated_memory} KB`;
-    document.getElementById('mem-free').textContent = `${state.free_memory} KB`;
-    document.getElementById('mem-ext-frag').textContent = `${state.external_fragmentation} KB`;
-
-    const bar = document.getElementById('memory-map-bar');
-    if (!bar) return;
-
-    bar.innerHTML = '';
-    state.partitions.forEach(p => {
-      const pct = (p.size / state.total_memory) * 100;
-      const seg = document.createElement('div');
-      seg.className = `memory-partition-segment ${p.is_allocated ? 'allocated' : 'free'}`;
-      seg.style.width = `${pct}%`;
-      seg.title = `ID: ${p.id} | ${p.is_allocated ? p.process_name + ' (' + p.size + ' KB)' : 'FREE (' + p.size + ' KB)'} [Start: ${p.start_address}]`;
-      seg.textContent = p.is_allocated ? `${p.process_name} (${p.size}K)` : `Free (${p.size}K)`;
-      bar.appendChild(seg);
-    });
-
-    const tbody = document.getElementById('memory-partitions-table-body');
-    if (!tbody) return;
-
-    tbody.innerHTML = state.partitions.map(p => `
-      <tr>
-        <td>#${p.id}</td>
-        <td>${p.start_address}</td>
-        <td>${p.size} KB</td>
-        <td><span class="status-badge ${p.is_allocated ? '' : 'error'}">${p.is_allocated ? 'ALLOCATED' : 'FREE'}</span></td>
-        <td>${p.is_allocated ? '<strong>' + p.process_name + '</strong>' : '<em>None</em>'}</td>
-        <td>
-          ${p.is_allocated ? `<button class="btn btn-danger btn-sm" onclick="window.Memory.deallocate(${p.id})">Free</button>` : '-'}
-        </td>
-      </tr>
-    `).join('');
-  },
-
   async allocate() {
-    const proc = document.getElementById('mem-proc-name').value.trim() || 'ProcA';
-    const size = parseInt(document.getElementById('mem-proc-size').value, 10);
-    const strategy = document.getElementById('mem-strategy-select').value;
+    const pidInput = document.getElementById('mem-req-pid');
+    const sizeInput = document.getElementById('mem-req-size');
+    const selStrategy = document.getElementById('mem-strategy');
 
-    if (isNaN(size) || size <= 0) {
-      window.App.toast('Please enter a valid positive size in KB.', 'error');
+    const procName = pidInput ? pidInput.value.trim() : 'Proc_A';
+    const size = sizeInput ? parseInt(sizeInput.value, 10) || 64 : 64;
+    const strategy = selStrategy ? selStrategy.value : this.currentStrategy;
+
+    if (!procName) {
+      window.app.showToast('Please enter a process name or tag', 'warning');
       return;
     }
 
     try {
-      const data = await API.allocateMemory(proc, size, strategy);
-      this.renderState(data.state);
-      window.App.toast(data.state.message, 'success');
+      await window.api.request('/api/memory/allocate', {
+        method: 'POST',
+        body: JSON.stringify({
+          process_name: procName,
+          size: size,
+          strategy: strategy
+        })
+      });
+
+      window.app.showToast(`Allocated ${size} KB for ${procName} (${strategy})`, 'success');
+      this.refresh();
+      if (pidInput) {
+        const nextChar = String.fromCharCode(procName.charCodeAt(procName.length - 1) + 1);
+        if (/[A-Z]/.test(nextChar)) {
+          pidInput.value = procName.slice(0, -1) + nextChar;
+        }
+      }
     } catch (err) {
-      window.App.toast(`Allocation failed: ${err.message}`, 'error');
+      window.app.showToast('Allocation failed: ' + err.message, 'error');
     }
   },
 
-  async deallocate(id) {
+  async deallocate(partitionId) {
     try {
-      const data = await API.deallocateMemory(id);
-      this.renderState(data.state);
-      window.App.toast(data.state.message, 'success');
+      await window.api.request('/api/memory/deallocate', {
+        method: 'POST',
+        body: JSON.stringify({ partition_id: partitionId })
+      });
+      window.app.showToast(`Partition #${partitionId} deallocated and coalesced.`, 'info');
+      this.refresh();
     } catch (err) {
-      window.App.toast(`Deallocation error: ${err.message}`, 'error');
+      window.app.showToast('Deallocation failed: ' + err.message, 'error');
     }
   },
 
-  async reset() {
-    const total = parseInt(prompt('Enter total memory size in KB (default: 1024):', '1024'), 10) || 1024;
+  async resetMemory() {
     try {
-      const data = await API.resetMemory(total);
-      this.renderState(data.state);
-      window.App.toast(data.message, 'success');
+      await window.api.resetMemory();
+      window.app.showToast('Physical memory reset to contiguous 1024 KB free space.', 'info');
+      this.refresh();
     } catch (err) {
-      window.App.toast(`Reset error: ${err.message}`, 'error');
+      window.app.showToast(err.message, 'error');
     }
+  },
+
+  escape(s) {
+    if (!s) return '';
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 };
+
+window.Memory = window.memoryModule;

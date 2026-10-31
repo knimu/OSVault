@@ -10,7 +10,7 @@ struct AppConfig {
     static constexpr size_t DEFAULT_TOTAL_CAPACITY_BYTES = DEFAULT_BLOCK_SIZE * DEFAULT_TOTAL_BLOCKS; // 4 MiB
 
     int port = 8080;
-    std::string host = "127.0.0.1";
+    std::string host = "0.0.0.0";
     std::string db_path = "data/osvault.db";
     std::string web_dir = "web";
     size_t block_size = DEFAULT_BLOCK_SIZE;
