@@ -1,0 +1,1065 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OSVault — Interactive Operating Systems Laboratory & Storage Engine</title>
+  <link rel="stylesheet" href="assets/css/styles.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220%22%20width=%22100%22%20height=%22100%22><text y=%22.9em%22 font-size=%2290%22>🛡️</text></svg>">
+</head>
+<body>
+
+  <!-- Sidebar -->
+  <aside id="sidebar">
+    <div class="brand-header">
+      🛡️ OSVault <span>LAB</span>
+    </div>
+    <ul class="nav-menu">
+      <li class="nav-item"><a href="#dashboard" class="nav-link active" data-view="dashboard">📊 Dashboard</a></li>
+      <li class="nav-item"><a href="#files" class="nav-link" data-view="files">📁 Virtual Filesystem</a></li>
+      <li class="nav-item"><a href="#blocks" class="nav-link" data-view="blocks">🧱 Block Storage (1024)</a></li>
+      <li class="nav-item"><a href="#cache" class="nav-link" data-view="cache">⚡ Page Cache & Paging</a></li>
+      <li class="nav-item"><a href="#scheduler" class="nav-link" data-view="scheduler">⏱️ CPU Scheduler</a></li>
+      <li class="nav-item"><a href="#memory" class="nav-link" data-view="memory">🧠 Memory Allocation</a></li>
+      <li class="nav-item"><a href="#sync" class="nav-link" data-view="sync">🔒 Synchronization</a></li>
+      <li class="nav-item"><a href="#deadlock" class="nav-link" data-view="deadlock">⚠️ Deadlock & Banker's</a></li>
+      <li class="nav-item"><a href="#ipc" class="nav-link" data-view="ipc">💬 IPC Simulator</a></li>
+      <li class="nav-item"><a href="#clocks" class="nav-link" data-view="clocks">🕒 Logical Clocks</a></li>
+      <li class="nav-item"><a href="#logs" class="nav-link" data-view="logs">📜 Audit Log Stream</a></li>
+      <li class="nav-item"><a href="#recovery" class="nav-link" data-view="recovery">🔄 Crash Recovery</a></li>
+      <li class="nav-item"><a href="#settings" class="nav-link" data-view="settings">⚙️ System Info</a></li>
+    </ul>
+    <div class="sidebar-footer">
+      <span>C++17 Engine</span>
+      <span class="badge badge-teal">v1.0.0</span>
+    </div>
+  </aside>
+
+  <!-- Main View Area -->
+  <main id="app-main">
+    <header id="top-header">
+      <div class="header-title-wrap">
+        <h1 class="page-title">Operating Systems Interactive Laboratory</h1>
+      </div>
+      <div class="d-flex align-center gap-3">
+        <span id="status-indicator" class="status-badge">
+          <span class="status-dot"></span> Online
+        </span>
+        <button id="btn-global-refresh" class="btn btn-secondary btn-sm" onclick="location.reload()">⟳ Refresh</button>
+      </div>
+    </header>
+
+    <div class="content-viewport">
+
+      <!-- ================= 1. DASHBOARD ================= -->
+      <section id="view-dashboard" class="module-section view-section active">
+        <div class="grid-4 mb-3">
+          <div class="stat-card">
+            <div class="stat-label">Files Stored</div>
+            <div id="dash-total-files" class="stat-value">0</div>
+            <div class="stat-subtext">Virtual inode hierarchy</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Block Usage</div>
+            <div id="dash-allocated-blocks" class="stat-value">0 / 1024</div>
+            <div id="dash-storage-usage-pct" class="stat-subtext">0% Allocated</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Cache Hit Rate</div>
+            <div id="dash-cache-hit-rate" class="stat-value highlight-teal">0.0%</div>
+            <div id="dash-cache-ratio" class="stat-subtext">0 hits / 0 misses</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Storage Engine</div>
+            <div id="dash-alloc-strategy" class="stat-value" style="font-size: 1.15rem; margin-top: 5px;">FIRST_FIT</div>
+            <div id="dash-status-badge" class="stat-subtext highlight-blue">WAL Crash-Consistent</div>
+          </div>
+        </div>
+
+        <div class="grid-2 mb-3">
+          <div class="panel">
+            <div class="panel-header">
+              <span class="panel-title">System Overview & Architecture</span>
+              <button id="btn-dash-seed" class="btn btn-teal btn-sm">🌱 Seed Demo Files</button>
+            </div>
+            <p class="text-muted mb-2">
+              <strong>OSVault</strong> is an integrated Operating Systems laboratory and crash-consistent logical block storage engine built with pure C++17, SQLite (WAL mode), Crow, and standalone Asio.
+            </p>
+            <ul class="text-muted small" style="line-height: 1.8; padding-left: 1.25rem;">
+              <li><strong>Block Engine:</strong> 1024 discrete 4096-byte logical storage blocks with FIRST_FIT, BEST_FIT, and WORST_FIT allocation.</li>
+              <li><strong>Crash Consistency:</strong> SQLite Write-Ahead Logging (WAL) and orphan block verification engine.</li>
+              <li><strong>Concurrency:</strong> Peterson's algorithm, Bounded Buffer, Readers-Writers, and Dining Philosophers.</li>
+              <li><strong>Process Management:</strong> FCFS, SJF (Preemptive/Non-preemptive), Round Robin, and Priority Scheduling with live Gantt charts.</li>
+              <li><strong>Distributed Clocks:</strong> Lamport timestamps and Vector clocks with causal concurrency verification.</li>
+            </ul>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header">
+              <span class="panel-title">Recent Virtual Files</span>
+              <a href="#files" class="btn btn-secondary btn-sm" onclick="app.switchView('files')">View All</a>
+            </div>
+            <div class="table-wrap">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Filename</th>
+                    <th>Size</th>
+                    <th>Blocks</th>
+                    <th>Created</th>
+                  </tr>
+                </thead>
+                <tbody id="dash-recent-files-body">
+                  <tr><td colspan="4" class="text-muted text-center p-3">No files in virtual storage.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title">Recent Operation Log Events</span>
+            <a href="#logs" class="btn btn-secondary btn-sm" onclick="app.switchView('logs')">Full Audit Log</a>
+          </div>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Event</th>
+                  <th>Description</th>
+                  <th>Timestamp</th>
+                </tr>
+              </thead>
+              <tbody id="dash-recent-logs-body">
+                <tr><td colspan="4" class="text-muted text-center p-3">Loading log stream...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 2. FILES ================= -->
+      <section id="view-files" class="module-section view-section">
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title">Virtual File System Manager</span>
+            <div class="d-flex gap-2">
+              <button id="btn-create-file-modal" class="btn btn-primary btn-sm">+ Create File</button>
+              <button id="btn-refresh-files" class="btn btn-secondary btn-sm">⟳ Refresh</button>
+            </div>
+          </div>
+          <div class="d-flex justify-between align-center mb-3">
+            <div style="max-width: 300px; width: 100%;">
+              <input type="text" id="file-search-input" class="input" placeholder="Search files by name...">
+            </div>
+            <span id="file-count-badge" class="badge badge-primary">0 files stored</span>
+          </div>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Filename</th>
+                  <th>Size</th>
+                  <th>Allocated Blocks</th>
+                  <th>Created At</th>
+                  <th>Updated At</th>
+                  <th style="text-align: right;">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="files-table-body">
+                <tr><td colspan="7" class="text-center text-muted p-4">No files found. Click "Create File" to store data.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 3. BLOCKS ================= -->
+      <section id="view-blocks" class="module-section view-section">
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title">1024-Block Logical Storage Visualizer</span>
+            <div class="d-flex align-center gap-2">
+              <label class="form-label mb-0">Strategy:</label>
+              <select id="block-strategy-select" class="select" style="width: auto;">
+                <option value="FIRST_FIT">FIRST_FIT</option>
+                <option value="BEST_FIT">BEST_FIT</option>
+                <option value="WORST_FIT">WORST_FIT</option>
+              </select>
+              <button id="btn-apply-strategy" class="btn btn-teal btn-sm">Set Strategy</button>
+            </div>
+          </div>
+
+          <div class="legend-bar">
+            <div class="legend-item"><div class="legend-swatch" style="background: #1e293b; border: 1px solid #334155;"></div> Free Block</div>
+            <div class="legend-item"><div class="legend-swatch" style="background: #3b82f6;"></div> Allocated Block</div>
+            <div class="legend-item"><div class="legend-swatch" style="background: #facc15;"></div> Selected Block</div>
+            <span id="block-stats-summary" class="ml-auto font-mono text-muted">0 / 1024 allocated</span>
+          </div>
+
+          <div id="block-grid-container" class="block-grid-container mb-3"></div>
+
+          <div id="block-inspector" class="panel mb-0" style="background: var(--bg-secondary);">
+            <div id="inspector-empty" class="text-muted text-center p-2">Click any block in the grid above to inspect its metadata and payload.</div>
+            <div id="inspector-content" style="display: none;">
+              <h4 id="inspect-block-title" class="mb-2">Block Details</h4>
+              <div class="grid-3 mb-2">
+                <div><strong>Status:</strong> <span id="inspect-status" class="badge badge-info">FREE</span></div>
+                <div><strong>File ID:</strong> <span id="inspect-file-id" class="font-mono">-</span></div>
+                <div><strong>Checksum:</strong> <span id="inspect-checksum" class="font-mono text-muted">-</span></div>
+              </div>
+              <div>
+                <strong>Payload Preview:</strong>
+                <pre id="inspect-data" class="font-mono p-2 mt-1 rounded bg-dark" style="max-height: 120px; overflow-y: auto;"></pre>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 4. CACHE ================= -->
+      <section id="view-cache" class="module-section view-section">
+        <div class="grid-4 mb-3">
+          <div class="stat-card">
+            <div class="stat-label">Cache Hits</div>
+            <div id="cache-hits" class="stat-value highlight-teal">0</div>
+            <div class="stat-subtext">Fast memory fetches</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Cache Misses</div>
+            <div id="cache-misses" class="stat-value highlight-red">0</div>
+            <div class="stat-subtext">Disk reads required</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Hit Ratio</div>
+            <div id="cache-ratio" class="stat-value highlight-blue">0.0%</div>
+            <div class="stat-subtext">Cache efficiency</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Cached Blocks</div>
+            <div id="cache-cached-blocks" class="stat-value">0 / 64</div>
+            <div class="stat-subtext">In-memory buffer</div>
+          </div>
+        </div>
+
+        <div class="panel mb-3">
+          <div class="panel-header">
+            <span class="panel-title">FIFO vs LRU Page Replacement Simulation</span>
+            <button id="btn-clear-cache" class="btn btn-secondary btn-sm">Clear Page Cache</button>
+          </div>
+          <div class="grid-3 mb-3">
+            <div class="form-group mb-0">
+              <label class="form-label">Reference String (Comma-separated page IDs):</label>
+              <input type="text" id="page-ref-string" class="input" value="7,0,1,2,0,3,0,4,2,3,0,3,2,1,2,0,1,7,0,1">
+            </div>
+            <div class="form-group mb-0">
+              <label class="form-label">Frame Capacity (Physical Memory Frames):</label>
+              <input type="number" id="page-frame-count" class="input" value="3" min="1" max="10">
+            </div>
+            <div class="form-group mb-0">
+              <label class="form-label">Algorithm:</label>
+              <div class="d-flex gap-2">
+                <select id="page-algo-select" class="select">
+                  <option value="FIFO">FIFO (First-In, First-Out)</option>
+                  <option value="LRU">LRU (Least Recently Used)</option>
+                </select>
+                <button id="btn-run-page-sim" class="btn btn-primary" style="white-space: nowrap;">Simulate</button>
+              </div>
+            </div>
+          </div>
+          <div id="page-sim-stats" class="mb-2"></div>
+          <div id="page-sim-container" class="table-wrap">
+            <div class="text-muted p-3 text-center">Click "Simulate" to execute the page replacement algorithm step-by-step.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 5. SCHEDULER ================= -->
+      <section id="view-scheduler" class="module-section view-section">
+        <div class="grid-2 mb-3">
+          <div class="panel mb-0">
+            <div class="panel-header">
+              <span class="panel-title">Process Workload Queue</span>
+              <button id="btn-add-proc" class="btn btn-teal btn-sm">+ Add Process</button>
+            </div>
+            <div class="grid-4 mb-2">
+              <input type="text" id="proc-pid" class="input" placeholder="PID (e.g. P1)" value="P1">
+              <input type="number" id="proc-arrival" class="input" placeholder="Arrival" value="0" min="0">
+              <input type="number" id="proc-burst" class="input" placeholder="Burst" value="5" min="1">
+              <input type="number" id="proc-priority" class="input" placeholder="Priority" value="1" min="1">
+            </div>
+            <div class="table-wrap" style="max-height: 220px; overflow-y: auto;">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>PID</th>
+                    <th>Arrival</th>
+                    <th>Burst</th>
+                    <th>Priority</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="proc-queue-body"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="panel mb-0">
+            <div class="panel-header">
+              <span class="panel-title">Scheduler Controls & Execution</span>
+            </div>
+            <div class="grid-2 mb-3">
+              <div class="form-group mb-0">
+                <label class="form-label">Scheduling Algorithm:</label>
+                <select id="sched-algo" class="select">
+                  <option value="FCFS">First-Come, First-Served (FCFS)</option>
+                  <option value="SJF">SJF (Shortest Job First - Non-Preemptive)</option>
+                  <option value="SRTF">SRTF (Shortest Remaining Time First - Preemptive)</option>
+                  <option value="RR">Round Robin (RR)</option>
+                  <option value="PRIORITY">Priority (Non-Preemptive)</option>
+                </select>
+              </div>
+              <div id="quantum-group" class="form-group mb-0" style="display: none;">
+                <label class="form-label">Time Quantum:</label>
+                <input type="number" id="sched-quantum" class="input" value="2" min="1" max="20">
+              </div>
+            </div>
+            <div class="d-flex gap-2">
+              <button id="btn-run-scheduler" class="btn btn-primary" style="flex: 1;">▶ Run Scheduler</button>
+              <button id="btn-compare-all-sched" class="btn btn-secondary" style="flex: 1;">📊 Compare All</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel mb-3">
+          <div class="panel-header">
+            <span class="panel-title">Gantt Chart Execution Timeline</span>
+            <div class="d-flex gap-3 small">
+              <span>Avg Turnaround: <strong id="sched-avg-turnaround" class="highlight-blue">-</strong></span>
+              <span>Avg Waiting: <strong id="sched-avg-waiting" class="highlight-teal">-</strong></span>
+              <span>CPU Utilization: <strong id="sched-cpu-util" class="highlight-teal">100%</strong></span>
+            </div>
+          </div>
+          <div id="gantt-chart-container" class="gantt-chart">
+            <div class="gantt-bar idle" style="width: 100%;">Run scheduler to generate Gantt chart</div>
+          </div>
+          <div id="sched-timeline-labels" class="d-flex justify-between font-mono small text-muted"></div>
+        </div>
+
+        <div class="panel mb-3">
+          <div class="panel-header">
+            <span class="panel-title">Process Completion Metrics</span>
+          </div>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>PID</th>
+                  <th>Arrival Time</th>
+                  <th>Burst Time</th>
+                  <th>Completion Time</th>
+                  <th>Turnaround Time</th>
+                  <th>Waiting Time</th>
+                </tr>
+              </thead>
+              <tbody id="sched-metrics-body">
+                <tr><td colspan="6" class="text-center text-muted p-3">No simulation data available yet.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div id="sched-compare-container" style="display: none;" class="panel">
+          <div class="panel-header">
+            <span class="panel-title">Algorithm Benchmark Comparison</span>
+          </div>
+          <div id="sched-compare-content"></div>
+        </div>
+      </section>
+
+      <!-- ================= 6. MEMORY ================= -->
+      <section id="view-memory" class="module-section view-section">
+        <div class="grid-3 mb-3">
+          <div class="stat-card">
+            <div class="stat-label">Memory Allocated</div>
+            <div id="mem-used-stat" class="stat-value highlight-teal">0 KB</div>
+            <div class="stat-subtext">Of 1024 KB total memory</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Free Contiguous Space</div>
+            <div id="mem-free-stat" class="stat-value">1024 KB</div>
+            <div class="stat-subtext">Available for allocation</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">External Fragmentation</div>
+            <div id="mem-ext-frag-stat" class="stat-value highlight-red">0 KB</div>
+            <div class="stat-subtext">Non-contiguous free holes</div>
+          </div>
+        </div>
+
+        <div class="panel mb-3">
+          <div class="panel-header">
+            <span class="panel-title">Dynamic Memory Allocator (First / Best / Worst Fit)</span>
+            <button id="btn-mem-reset" class="btn btn-secondary btn-sm">Reset Memory</button>
+          </div>
+          <div class="grid-4 mb-3">
+            <div class="form-group mb-0">
+              <label class="form-label">Allocation Strategy:</label>
+              <div class="d-flex gap-2">
+                <select id="mem-strategy" class="select">
+                  <option value="FIRST_FIT">First Fit</option>
+                  <option value="BEST_FIT">Best Fit</option>
+                  <option value="WORST_FIT">Worst Fit</option>
+                </select>
+                <button id="btn-apply-mem-strategy" class="btn btn-teal btn-sm">Apply</button>
+              </div>
+            </div>
+            <div class="form-group mb-0">
+              <label class="form-label">Process / Tag Name:</label>
+              <input type="text" id="mem-req-pid" class="input" value="Proc_A">
+            </div>
+            <div class="form-group mb-0">
+              <label class="form-label">Size in KB (Total 1024 KB):</label>
+              <input type="number" id="mem-req-size" class="input" value="128" min="8" max="1024">
+            </div>
+            <div class="form-group mb-0 d-flex align-end">
+              <button id="btn-mem-allocate" class="btn btn-primary" style="width: 100%;">Allocate Block</button>
+            </div>
+          </div>
+
+          <label class="form-label">Physical Memory Map (0 - 1024 KB):</label>
+          <div id="memory-map-container" class="memory-bar mb-3"></div>
+
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Block ID</th>
+                  <th>Tag / Process</th>
+                  <th>Start Address</th>
+                  <th>Size</th>
+                  <th>Status</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="memory-blocks-body">
+                <tr><td colspan="6" class="text-center text-muted p-3">Memory fully free (1024 KB).</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 7. SYNCHRONIZATION ================= -->
+      <section id="view-sync" class="module-section view-section">
+        <div class="d-flex gap-2 mb-3">
+          <button class="btn btn-secondary sync-tab-btn active" data-tab="peterson">Peterson's Algorithm</button>
+          <button class="btn btn-secondary sync-tab-btn" data-tab="bb">Bounded Buffer</button>
+          <button class="btn btn-secondary sync-tab-btn" data-tab="rw">Readers-Writers</button>
+          <button class="btn btn-secondary sync-tab-btn" data-tab="dp">Dining Philosophers</button>
+        </div>
+
+        <!-- Peterson -->
+        <div id="sync-peterson" class="sync-tab-content active panel">
+          <div class="panel-header">
+            <span class="panel-title">Peterson's Mutual Exclusion for 2 Processes</span>
+            <button id="btn-peterson-reset" class="btn btn-secondary btn-sm">Reset</button>
+          </div>
+          <div class="grid-3 mb-3">
+            <div class="stat-card">
+              <div class="stat-label">Process P0 Flag</div>
+              <div id="sync-p0-flag" class="stat-value font-mono">false</div>
+              <button id="btn-peterson-p0" class="btn btn-primary btn-sm mt-2" style="width: 100%;">Step P0</button>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Turn Variable</div>
+              <div id="sync-turn" class="stat-value font-mono highlight-teal">0</div>
+              <div class="stat-subtext">Favors Process Turn</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Process P1 Flag</div>
+              <div id="sync-p1-flag" class="stat-value font-mono">false</div>
+              <button id="btn-peterson-p1" class="btn btn-primary btn-sm mt-2" style="width: 100%;">Step P1</button>
+            </div>
+          </div>
+          <div class="p-3 rounded bg-dark border border-secondary text-center">
+            <strong>Critical Section Status:</strong>
+            <span id="sync-cs-status" class="badge badge-success ml-2">IDLE (No collision)</span>
+          </div>
+        </div>
+
+        <!-- Bounded Buffer -->
+        <div id="sync-bb" class="sync-tab-content panel" style="display: none;">
+          <div class="panel-header">
+            <span class="panel-title">Bounded Buffer (Producer-Consumer with Semaphores)</span>
+            <button id="btn-bb-reset" class="btn btn-secondary btn-sm">Reset</button>
+          </div>
+          <div class="grid-3 mb-3">
+            <div class="stat-card">
+              <div class="stat-label">Buffer Capacity</div>
+              <div id="bb-capacity" class="stat-value">5</div>
+              <div class="stat-subtext">Fixed circular queue</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Items In Buffer</div>
+              <div id="bb-count" class="stat-value highlight-teal">0</div>
+              <div class="stat-subtext">Current stock</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Semaphores</div>
+              <div class="font-mono mt-1">Empty: <strong id="bb-sem-empty">5</strong> | Full: <strong id="bb-sem-full">0</strong></div>
+              <div class="stat-subtext">Mutex: Available</div>
+            </div>
+          </div>
+          <div class="panel mb-3" style="background: var(--bg-secondary);">
+            <label class="form-label">Buffer Slots:</label>
+            <div id="bb-slots-container" class="d-flex gap-3 justify-center p-3"></div>
+          </div>
+          <div class="d-flex gap-3">
+            <div class="d-flex gap-2" style="flex: 1;">
+              <input type="text" id="bb-produce-val" class="input" placeholder="Item (e.g. Data_1)" value="Item_A">
+              <button id="btn-bb-produce" class="btn btn-primary" style="white-space: nowrap;">Produce</button>
+            </div>
+            <button id="btn-bb-consume" class="btn btn-danger" style="flex: 1;">Consume Item</button>
+          </div>
+        </div>
+
+        <!-- Readers-Writers -->
+        <div id="sync-rw" class="sync-tab-content panel" style="display: none;">
+          <div class="panel-header">
+            <span class="panel-title">Readers-Writers Problem (Read-Biased / Mutex)</span>
+            <button id="btn-rw-reset" class="btn btn-secondary btn-sm">Reset</button>
+          </div>
+          <div class="grid-3 mb-3">
+            <div class="stat-card">
+              <div class="stat-label">Active Readers</div>
+              <div id="rw-active-readers" class="stat-value highlight-blue">0</div>
+              <div class="stat-subtext">Concurrent shared reads</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Writer Status</div>
+              <div id="rw-writer-active" class="stat-value highlight-red">IDLE</div>
+              <div class="stat-subtext">Exclusive access lock</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Shared Resource Value</div>
+              <div id="rw-resource-val" class="stat-value font-mono">100</div>
+              <div class="stat-subtext">Memory record</div>
+            </div>
+          </div>
+          <div id="rw-status-msg" class="alert alert-info mb-3">System idle. Readers can read concurrently; Writers require exclusive lock.</div>
+          <div class="grid-2">
+            <div class="panel mb-0" style="background: var(--bg-secondary);">
+              <h4 class="mb-2">Reader Operations</h4>
+              <div class="form-group">
+                <input type="text" id="rw-reader-id" class="input" placeholder="Reader ID (e.g. Reader_1)" value="Reader_1">
+              </div>
+              <div class="d-flex gap-2">
+                <button id="btn-rw-start-read" class="btn btn-primary btn-sm" style="flex: 1;">Start Read</button>
+                <button id="btn-rw-stop-read" class="btn btn-secondary btn-sm" style="flex: 1;">Stop Read</button>
+              </div>
+            </div>
+            <div class="panel mb-0" style="background: var(--bg-secondary);">
+              <h4 class="mb-2">Writer Operations</h4>
+              <div class="grid-2 mb-2">
+                <input type="text" id="rw-writer-id" class="input" placeholder="Writer ID" value="Writer_1">
+                <input type="number" id="rw-writer-val" class="input" placeholder="New Value" value="200">
+              </div>
+              <div class="d-flex gap-2">
+                <button id="btn-rw-start-write" class="btn btn-danger btn-sm" style="flex: 1;">Acquire Lock (Write)</button>
+                <button id="btn-rw-stop-write" class="btn btn-secondary btn-sm" style="flex: 1;">Release Lock</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Dining Philosophers -->
+        <div id="sync-dp" class="sync-tab-content panel" style="display: none;">
+          <div class="panel-header">
+            <span class="panel-title">Dining Philosophers Synchronization & Deadlock Avoidance</span>
+            <button id="btn-dp-reset" class="btn btn-secondary btn-sm">Reset</button>
+          </div>
+          <div id="dp-status-msg" class="text-muted mb-3">Resource hierarchy prevents deadlocks: 5 Philosophers, 5 Chopsticks.</div>
+          <div id="dp-table-container" class="grid-5 gap-2 mb-3"></div>
+        </div>
+      </section>
+
+      <!-- ================= 8. DEADLOCK ================= -->
+      <section id="view-deadlock" class="module-section view-section">
+        <div class="panel mb-3">
+          <div class="panel-header">
+            <span class="panel-title">Banker's Algorithm & Deadlock Detection</span>
+            <div class="d-flex gap-2">
+              <button id="btn-load-preset-safe" class="btn btn-secondary btn-sm">Load Safe Preset</button>
+              <button id="btn-load-preset-deadlock" class="btn btn-secondary btn-sm">Load Deadlock Preset</button>
+            </div>
+          </div>
+
+          <div class="grid-3 mb-3">
+            <div class="form-group mb-0">
+              <label class="form-label">Available Vector [A, B, C]:</label>
+              <input type="text" id="banker-avail-vector" class="input font-mono" value="3, 3, 2">
+            </div>
+            <div class="form-group mb-0" style="grid-column: span 2;">
+              <label class="form-label">Actions:</label>
+              <div class="d-flex gap-2">
+                <button id="btn-run-banker" class="btn btn-primary" style="flex: 1;">🔍 Analyze Deadlock / Safety</button>
+                <button id="btn-recover-deadlock" class="btn btn-danger btn-sm">⚡ Recover (Terminate Deadlocked)</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid-2 mb-3">
+            <div>
+              <label class="form-label">Current Allocation Matrix (P0..P4 &times; A,B,C):</label>
+              <textarea id="banker-alloc-matrix" class="textarea font-mono" rows="6">0, 1, 0
+2, 0, 0
+3, 0, 2
+2, 1, 1
+0, 0, 2</textarea>
+            </div>
+            <div>
+              <label class="form-label">Max / Request Matrix (P0..P4 &times; A,B,C):</label>
+              <textarea id="banker-request-matrix" class="textarea font-mono" rows="6">7, 5, 3
+3, 2, 2
+9, 0, 2
+2, 2, 2
+4, 3, 3</textarea>
+            </div>
+          </div>
+
+          <div id="deadlock-result-box" class="p-3 rounded bg-dark border border-secondary">
+            <div class="text-muted text-center">Click "Analyze Deadlock / Safety" to run Banker's Algorithm.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 9. IPC ================= -->
+      <section id="view-ipc" class="module-section view-section">
+        <div class="d-flex gap-2 mb-3">
+          <button class="btn btn-secondary ipc-subtab-btn active" data-tab="pipe">Unix Pipe</button>
+          <button class="btn btn-secondary ipc-subtab-btn" data-tab="mq">Message Queue</button>
+          <button class="btn btn-secondary ipc-subtab-btn" data-tab="shm">Shared Memory & Mutex</button>
+          <button class="btn btn-secondary ipc-subtab-btn" data-tab="socket">Socket Exchange</button>
+        </div>
+
+        <!-- Pipe -->
+        <div id="ipc-pipe" class="ipc-subtab-content active panel">
+          <div class="panel-header">
+            <span class="panel-title">Anonymous Pipe FIFO Stream</span>
+            <button id="btn-pipe-reset" class="btn btn-secondary btn-sm">Clear Pipe</button>
+          </div>
+          <div class="mb-3">
+            <div class="d-flex justify-between small text-muted mb-1">
+              <span>Pipe Buffer:</span>
+              <span id="pipe-size-badge">0 / 4096 bytes</span>
+            </div>
+            <div style="background: var(--bg-secondary); height: 10px; border-radius: 5px; overflow: hidden;">
+              <div id="pipe-fill-bar" style="background: var(--accent-blue); width: 0%; height: 100%; transition: width 0.2s;"></div>
+            </div>
+          </div>
+          <pre id="pipe-buffer-display" class="font-mono p-3 rounded bg-dark mb-3" style="max-height: 120px; overflow-y: auto;">(Pipe empty)</pre>
+          <div class="grid-2">
+            <div>
+              <label class="form-label">Write to Pipe:</label>
+              <div class="d-flex gap-2">
+                <input type="text" id="pipe-write-input" class="input" placeholder="Payload string...">
+                <button id="btn-pipe-write" class="btn btn-primary" style="white-space: nowrap;">Write</button>
+              </div>
+            </div>
+            <div>
+              <label class="form-label">Read from Pipe (Bytes):</label>
+              <div class="d-flex gap-2">
+                <input type="number" id="pipe-read-bytes" class="input" value="64" min="1" max="1024">
+                <button id="btn-pipe-read" class="btn btn-teal" style="white-space: nowrap;">Read</button>
+              </div>
+              <div id="pipe-read-output" class="font-mono mt-2 small text-muted"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Message Queue -->
+        <div id="ipc-mq" class="ipc-subtab-content panel" style="display: none;">
+          <div class="panel-header">
+            <span class="panel-title">POSIX Message Queue Simulation</span>
+            <div class="d-flex gap-2">
+              <span id="mq-count-badge" class="badge badge-primary">0 / 64 messages</span>
+              <button id="btn-mq-clear" class="btn btn-secondary btn-sm">Clear Queue</button>
+            </div>
+          </div>
+          <div class="grid-2 mb-3">
+            <div class="panel mb-0" style="background: var(--bg-secondary);">
+              <h4 class="mb-2">Send Message</h4>
+              <div class="grid-2 mb-2">
+                <select id="mq-sender" class="select">
+                  <option value="Proc_A">Proc_A</option>
+                  <option value="Proc_B">Proc_B</option>
+                  <option value="Proc_C">Proc_C</option>
+                </select>
+                <select id="mq-receiver" class="select">
+                  <option value="Proc_B">Proc_B</option>
+                  <option value="Proc_A">Proc_A</option>
+                  <option value="Proc_C">Proc_C</option>
+                </select>
+              </div>
+              <div class="d-flex gap-2">
+                <input type="text" id="mq-message" class="input" placeholder="Message content...">
+                <button id="btn-mq-send" class="btn btn-primary">Send</button>
+              </div>
+            </div>
+            <div class="panel mb-0" style="background: var(--bg-secondary);">
+              <h4 class="mb-2">Receive Message</h4>
+              <div class="d-flex gap-2 mb-2">
+                <select id="mq-receive-proc" class="select">
+                  <option value="Proc_B">Proc_B</option>
+                  <option value="Proc_A">Proc_A</option>
+                  <option value="Proc_C">Proc_C</option>
+                </select>
+                <button id="btn-mq-receive" class="btn btn-teal">Receive</button>
+              </div>
+              <div id="mq-receive-output" class="font-mono p-2 rounded bg-dark small">No message received yet.</div>
+            </div>
+          </div>
+          <div id="mq-messages-list"></div>
+        </div>
+
+        <!-- Shared Memory & Mutex -->
+        <div id="ipc-shm" class="ipc-subtab-content panel" style="display: none;">
+          <div class="panel-header">
+            <span class="panel-title">Shared Memory with Mutex Synchronization</span>
+            <span id="shm-lock-status" class="badge badge-success">UNLOCKED</span>
+          </div>
+          <div class="grid-3 mb-3">
+            <div class="form-group mb-0">
+              <label class="form-label">Operating Process:</label>
+              <select id="shm-process" class="select">
+                <option value="Proc_X">Proc_X</option>
+                <option value="Proc_Y">Proc_Y</option>
+                <option value="Proc_Z">Proc_Z</option>
+              </select>
+            </div>
+            <div class="form-group mb-0 d-flex gap-2 align-end">
+              <button id="btn-shm-lock" class="btn btn-danger" style="flex: 1;">Lock Mutex</button>
+              <button id="btn-shm-unlock" class="btn btn-secondary" style="flex: 1;">Unlock</button>
+            </div>
+            <div class="form-group mb-0 d-flex align-end">
+              <span id="shm-version" class="text-muted small">Version / Seq: 0</span>
+            </div>
+          </div>
+          <div class="panel mb-3" style="background: var(--bg-secondary);">
+            <label class="form-label">Shared Memory Content:</label>
+            <pre id="shm-content" class="font-mono p-3 rounded bg-dark">(Empty Shared Memory)</pre>
+          </div>
+          <div class="grid-2">
+            <div>
+              <label class="form-label">Write Data (Requires Mutex Lock):</label>
+              <div class="d-flex gap-2">
+                <input type="text" id="shm-write-data" class="input" placeholder="New memory value...">
+                <button id="btn-shm-write" class="btn btn-primary">Write</button>
+              </div>
+            </div>
+            <div>
+              <label class="form-label">Read Data:</label>
+              <button id="btn-shm-read" class="btn btn-teal mb-2">Read Shared Memory</button>
+              <div id="shm-read-output" class="font-mono small text-muted"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Socket -->
+        <div id="ipc-socket" class="ipc-subtab-content panel" style="display: none;">
+          <div class="panel-header">
+            <span class="panel-title">Client-Server Request-Reply Exchange</span>
+          </div>
+          <div class="grid-3 mb-3">
+            <div class="form-group mb-0">
+              <label class="form-label">Client Name:</label>
+              <input type="text" id="socket-client-name" class="input" value="Client_1">
+            </div>
+            <div class="form-group mb-0">
+              <label class="form-label">Command / Payload (e.g. GET_TIME, ECHO hello, PING):</label>
+              <input type="text" id="socket-payload" class="input" value="PING">
+            </div>
+            <div class="form-group mb-0 d-flex align-end">
+              <button id="btn-socket-send" class="btn btn-primary" style="width: 100%;">Send IPC Request</button>
+            </div>
+          </div>
+          <div id="socket-history-list"></div>
+        </div>
+      </section>
+
+      <!-- ================= 10. CLOCKS ================= -->
+      <section id="view-clocks" class="module-section view-section">
+        <div class="panel mb-3">
+          <div class="panel-header">
+            <span class="panel-title">Distributed Logical Clocks (Lamport & Vector Clocks)</span>
+            <button id="btn-clock-reset" class="btn btn-secondary btn-sm">Reset Clocks</button>
+          </div>
+          <div id="clock-nodes-container" class="grid-3 mb-3"></div>
+          <div class="grid-2 mb-3">
+            <div class="panel mb-0" style="background: var(--bg-secondary);">
+              <h4 class="mb-2">Trigger Local Computation Event</h4>
+              <div class="d-flex gap-2">
+                <select id="clock-local-node" class="select" style="max-width: 120px;"></select>
+                <input type="text" id="clock-local-desc" class="input" placeholder="Event description...">
+                <button id="btn-clock-local-event" class="btn btn-primary" style="white-space: nowrap;">Trigger</button>
+              </div>
+            </div>
+            <div class="panel mb-0" style="background: var(--bg-secondary);">
+              <h4 class="mb-2">Send Distributed Message</h4>
+              <div class="grid-3 mb-2">
+                <select id="clock-from-node" class="select"></select>
+                <select id="clock-to-node" class="select"></select>
+                <button id="btn-clock-send" class="btn btn-teal">Send Msg</button>
+              </div>
+              <input type="text" id="clock-send-msg" class="input" placeholder="Message content (e.g. Sync state)">
+            </div>
+          </div>
+        </div>
+
+        <div class="panel mb-3">
+          <div class="panel-header">
+            <span class="panel-title">Causal Concurrency Checker (Vector Clock Comparison)</span>
+          </div>
+          <div class="grid-3 mb-2">
+            <div>
+              <label class="form-label">Vector V1 [N0, N1, N2]:</label>
+              <input type="text" id="concurrency-v1" class="input font-mono" value="[1, 0, 0]">
+            </div>
+            <div>
+              <label class="form-label">Vector V2 [N0, N1, N2]:</label>
+              <input type="text" id="concurrency-v2" class="input font-mono" value="[0, 1, 0]">
+            </div>
+            <div class="d-flex align-end">
+              <button id="btn-concurrency-check" class="btn btn-primary" style="width: 100%;">Evaluate Causality</button>
+            </div>
+          </div>
+          <div id="concurrency-result" class="mt-2"></div>
+        </div>
+
+        <div class="panel mb-3">
+          <div class="panel-header">
+            <span class="panel-title">Distributed Causal Event Timeline</span>
+          </div>
+          <div id="clock-timeline-list"></div>
+        </div>
+      </section>
+
+      <!-- ================= 11. LOGS ================= -->
+      <section id="view-logs" class="module-section view-section">
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title">Persistent Operation Log & Audit Stream</span>
+            <div class="d-flex gap-2 align-center">
+              <label class="d-flex align-center gap-1 small text-muted">
+                <input type="checkbox" id="toggle-auto-refresh-logs"> Live Tail
+              </label>
+              <button id="btn-refresh-logs" class="btn btn-secondary btn-sm">⟳ Refresh</button>
+              <button id="btn-clear-logs" class="btn btn-danger btn-sm">Clear Audit Logs</button>
+            </div>
+          </div>
+          <div class="grid-3 mb-3">
+            <div class="form-group mb-0">
+              <label class="form-label">Filter by Event Type:</label>
+              <select id="log-filter-type" class="select">
+                <option value="">All Events</option>
+                <option value="FILE_CREATE">FILE_CREATE</option>
+                <option value="FILE_DELETE">FILE_DELETE</option>
+                <option value="BLOCK_ALLOC">BLOCK_ALLOC</option>
+                <option value="BLOCK_FREE">BLOCK_FREE</option>
+                <option value="CACHE_HIT">CACHE_HIT</option>
+                <option value="CACHE_MISS">CACHE_MISS</option>
+                <option value="SCHED_RUN">SCHED_RUN</option>
+                <option value="MEM_ALLOC">MEM_ALLOC</option>
+                <option value="DEADLOCK">DEADLOCK</option>
+                <option value="SYNC">SYNC</option>
+                <option value="IPC">IPC</option>
+                <option value="RECOVERY">RECOVERY</option>
+              </select>
+            </div>
+            <div class="form-group mb-0" style="grid-column: span 2;">
+              <label class="form-label">Search Description / Metadata:</label>
+              <input type="text" id="log-search-input" class="input" placeholder="Search event text...">
+            </div>
+          </div>
+          <div class="d-flex justify-between align-center mb-2">
+            <span id="log-count-badge" class="badge badge-primary">0 events</span>
+            <div class="d-flex align-center gap-2">
+              <span id="log-page-info" class="small text-muted">Showing 0-0 of 0</span>
+              <button id="btn-log-prev" class="btn btn-secondary btn-sm">&larr; Prev</button>
+              <button id="btn-log-next" class="btn btn-secondary btn-sm">Next &rarr;</button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Event Type</th>
+                  <th>Description</th>
+                  <th>Metadata</th>
+                  <th>Timestamp</th>
+                </tr>
+              </thead>
+              <tbody id="logs-table-body">
+                <tr><td colspan="5" class="text-center text-muted p-4">Loading audit stream...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 12. RECOVERY ================= -->
+      <section id="view-recovery" class="module-section view-section">
+        <div id="integrity-status-card" class="panel mb-3">
+          <div class="text-center p-3 text-muted">Click "Run Integrity Check" to scan storage consistency.</div>
+        </div>
+
+        <div class="panel mb-3">
+          <div class="panel-header">
+            <span class="panel-title">Crash Consistency Laboratory & Verification</span>
+            <div class="d-flex gap-2">
+              <button id="btn-run-integrity-check" class="btn btn-primary btn-sm">🔍 Run Integrity Check</button>
+              <button id="btn-fix-orphans" class="btn btn-teal btn-sm" disabled>🔧 Fix Orphan Blocks</button>
+            </div>
+          </div>
+          <div class="grid-2 mb-3">
+            <div class="panel mb-0" style="background: var(--bg-secondary);">
+              <h4 class="mb-2">Simulate Interrupted Write (Power Loss Crash)</h4>
+              <p class="small text-muted mb-2">
+                Allocates physical storage block on disk but intentionally interrupts metadata transaction before SQLite WAL commit.
+              </p>
+              <div class="d-flex gap-2">
+                <input type="text" id="sim-crash-filename" class="input" value="crash_test.bin">
+                <button id="btn-sim-interrupted-write" class="btn btn-danger" style="white-space: nowrap;">Simulate Crash</button>
+              </div>
+            </div>
+
+            <div class="panel mb-0" style="background: var(--bg-secondary);">
+              <h4 class="mb-2">Simulate System Restart & WAL Replay</h4>
+              <p class="small text-muted mb-2">
+                Simulates an ungraceful process shutdown followed by restart to verify persistent state replay and database integrity.
+              </p>
+              <button id="btn-sim-restart" class="btn btn-secondary" style="width: 100%;">Simulate Reboot & Verify</button>
+            </div>
+          </div>
+
+          <div id="recovery-sim-result"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title">Recovery Audit Log</span>
+          </div>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Action</th>
+                  <th>Description</th>
+                  <th>Status</th>
+                  <th>Timestamp</th>
+                </tr>
+              </thead>
+              <tbody id="recovery-history-body">
+                <tr><td colspan="4" class="text-center text-muted p-3">No recovery history recorded yet.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 13. SETTINGS & SYSTEM ================= -->
+      <section id="view-settings" class="module-section view-section">
+        <div class="panel mb-3">
+          <div class="panel-header">
+            <span class="panel-title">Engine Configuration & Operating Environment</span>
+          </div>
+          <div class="grid-2 mb-3">
+            <div>
+              <table class="data-table">
+                <tbody>
+                  <tr><th>Software Version</th><td>OSVault v1.0.0 (Release)</td></tr>
+                  <tr><th>C++ Standard</th><td>ISO/IEC C++17</td></tr>
+                  <tr><th>Web Server Framework</th><td>Crow C++ v1.3.4 (Header-Only) + Standalone Asio 1.30.2</td></tr>
+                  <tr><th>Database Engine</th><td>SQLite 3.47.0 (WAL Mode Enabled)</td></tr>
+                  <tr><th>Test Framework</th><td>doctest v2.4.11</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div>
+              <table class="data-table">
+                <tbody>
+                  <tr><th>Block Size</th><td>4096 bytes (4 KB standard sector)</td></tr>
+                  <tr><th>Total Storage Blocks</th><td>1024 blocks (4 MB virtual storage)</td></tr>
+                  <tr><th>Page Cache Frames</th><td>64 memory frames</td></tr>
+                  <tr><th>IPC Buffer Capacity</th><td>4096 bytes pipe / 64 queue msgs</td></tr>
+                  <tr><th>Network Port</th><td>HTTP 8080 (Single C++ process)</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- Create / Edit File Modal -->
+  <div id="file-modal" class="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 id="modal-title">Create Virtual File</h3>
+        <button id="btn-close-modal" class="btn btn-secondary btn-sm">&times;</button>
+      </div>
+      <input type="hidden" id="file-id">
+      <div class="form-group">
+        <label class="form-label">Filename:</label>
+        <input type="text" id="file-name" class="input" placeholder="e.g. kern_config.sys">
+      </div>
+      <div class="form-group">
+        <label class="form-label">File Content:</label>
+        <textarea id="file-content" class="textarea" rows="8" placeholder="Enter text or binary payload..."></textarea>
+      </div>
+      <div class="modal-footer">
+        <button id="btn-cancel-modal" class="btn btn-secondary">Cancel</button>
+        <button id="btn-save-file" class="btn btn-primary">Save File</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Inspect File Modal -->
+  <div id="file-view-modal" class="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 id="view-modal-title">File Details</h3>
+        <button id="btn-close-view-modal" class="btn btn-secondary btn-sm">&times;</button>
+      </div>
+      <div id="view-file-meta" class="mb-3 text-muted small"></div>
+      <pre id="view-file-content" class="font-mono p-3 rounded bg-dark mb-3" style="max-height: 250px; overflow-y: auto;"></pre>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="document.getElementById('file-view-modal').classList.remove('active')">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- JavaScript Modules -->
+  <script src="assets/js/api.js"></script>
+  <script src="assets/js/dashboard.js"></script>
+  <script src="assets/js/files.js"></script>
+  <script src="assets/js/blocks.js"></script>
+  <script src="assets/js/cache.js"></script>
+  <script src="assets/js/scheduler.js"></script>
+  <script src="assets/js/memory.js"></script>
+  <script src="assets/js/synchronization.js"></script>
+  <script src="assets/js/deadlock.js"></script>
+  <script src="assets/js/ipc.js"></script>
+  <script src="assets/js/clocks.js"></script>
+  <script src="assets/js/logs.js"></script>
+  <script src="assets/js/recovery.js"></script>
+  <script src="assets/js/app.js"></script>
+</body>
+</html>

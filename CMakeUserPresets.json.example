@@ -1,0 +1,13 @@
+{
+  "version": 3,
+  "configurePresets": [
+    {
+      "name": "user-custom",
+      "inherits": "windows-default",
+      "displayName": "User Custom Preset",
+      "cacheVariables": {
+        "OSVAULT_DEFAULT_PORT": "8080"
+      }
+    }
+  ]
+}

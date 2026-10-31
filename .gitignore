@@ -1,0 +1,30 @@
+# Build directories
+build/
+bin/
+out/
+_deps/
+*.dir/
+
+# Visual Studio / MSBuild
+.vs/
+*.vcxproj
+*.vcxproj.filters
+*.sln
+*.slnx
+*.user
+x64/
+Debug/
+Release/
+
+# SQLite databases generated at runtime
+data/*.db
+data/*.db-journal
+data/*.db-wal
+data/*.db-shm
+osvault_test_*.db*
+osvault_data/
+
+# Temporary / OS
+*.log
+.DS_Store
+Thumbs.db
