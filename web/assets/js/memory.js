@@ -4,6 +4,7 @@
 
 window.memoryModule = {
   currentStrategy: 'FIRST_FIT',
+  actionHistory: [],
 
   init() {
     this.bindEvents();
@@ -33,7 +34,7 @@ window.memoryModule = {
 
   async refresh() {
     try {
-      const res = await window.api.request('/api/memory/state');
+      const res = await window.api.getMemoryState();
       const st = res.state;
       if (!st) return;
 
@@ -41,15 +42,26 @@ window.memoryModule = {
       const freeEl = document.getElementById('mem-free-stat');
       const fragEl = document.getElementById('mem-ext-frag-stat');
 
-      if (usedEl) usedEl.textContent = `${st.allocated_size || 0} KB`;
-      if (freeEl) freeEl.textContent = `${st.free_size || 1024} KB`;
+      if (usedEl) usedEl.textContent = `${st.allocated_memory || 0} KB`;
+      if (freeEl) freeEl.textContent = `${st.free_memory || st.total_memory || 1024} KB`;
       if (fragEl) fragEl.textContent = `${st.external_fragmentation || 0} KB`;
+      const utilEl = document.getElementById('mem-util-stat');
+      if (utilEl) {
+        const utilization = st.total_memory > 0 ? (st.allocated_memory / st.total_memory) * 100 : 0;
+        utilEl.textContent = `${utilization.toFixed(1)}%`;
+      }
+      const freeHolesEl = document.getElementById('mem-free-holes-stat');
+      if (freeHolesEl) {
+        freeHolesEl.textContent = (st.partitions || []).filter(p => !p.is_allocated).length;
+      }
+      const intFragEl = document.getElementById('mem-int-frag-stat');
+      if (intFragEl) intFragEl.textContent = `${st.total_internal_fragmentation || 0} KB`;
 
       // Render physical memory bar
       const bar = document.getElementById('memory-map-container');
       if (bar) {
         bar.innerHTML = '';
-        const total = st.total_size || 1024;
+        const total = st.total_memory || 1024;
 
         (st.partitions || []).forEach(p => {
           const pct = Math.max(2, (p.size / total) * 100);
@@ -85,6 +97,13 @@ window.memoryModule = {
           </tr>
         `).join('');
       }
+
+      const history = document.getElementById('memory-action-history');
+      if (history) {
+        history.innerHTML = this.actionHistory.length
+          ? this.actionHistory.map(item => `<div>${this.escape(item)}</div>`).join('')
+          : 'No allocation actions yet.';
+      }
     } catch (err) {
       console.error('Failed to load memory state:', err);
     }
@@ -103,16 +122,23 @@ window.memoryModule = {
       window.app.showToast('Please enter a process name or tag', 'warning');
       return;
     }
+    if (!/^[A-Za-z0-9_-]{1,32}$/.test(procName)) {
+      window.app.showToast('Process name must be 1-32 letters, digits, underscores or dashes.', 'warning');
+      return;
+    }
+    if (!Number.isInteger(size) || size <= 0) {
+      window.app.showToast('Allocation size must be greater than zero.', 'warning');
+      return;
+    }
+    if (size > 1024) {
+      window.app.showToast('Allocation size cannot exceed 1024 KB.', 'warning');
+      return;
+    }
 
     try {
-      await window.api.request('/api/memory/allocate', {
-        method: 'POST',
-        body: JSON.stringify({
-          process_name: procName,
-          size: size,
-          strategy: strategy
-        })
-      });
+      const result = await window.api.allocateMemory(procName, size, strategy);
+      this.actionHistory.unshift(`${result.state.message || 'Allocation completed'} — ${new Date().toLocaleTimeString()}`);
+      this.actionHistory = this.actionHistory.slice(0, 8);
 
       window.app.showToast(`Allocated ${size} KB for ${procName} (${strategy})`, 'success');
       this.refresh();
@@ -129,10 +155,9 @@ window.memoryModule = {
 
   async deallocate(partitionId) {
     try {
-      await window.api.request('/api/memory/deallocate', {
-        method: 'POST',
-        body: JSON.stringify({ partition_id: partitionId })
-      });
+      const result = await window.api.deallocateMemory(partitionId);
+      this.actionHistory.unshift(`${result.state.message || `Partition #${partitionId} deallocated`} — ${new Date().toLocaleTimeString()}`);
+      this.actionHistory = this.actionHistory.slice(0, 8);
       window.app.showToast(`Partition #${partitionId} deallocated and coalesced.`, 'info');
       this.refresh();
     } catch (err) {
@@ -141,8 +166,11 @@ window.memoryModule = {
   },
 
   async resetMemory() {
+    if (!confirm('Reset dynamic memory to one contiguous 1024 KB free block?')) return;
     try {
       await window.api.resetMemory();
+      this.actionHistory.unshift(`Memory reset to one 1024 KB free block — ${new Date().toLocaleTimeString()}`);
+      this.actionHistory = this.actionHistory.slice(0, 8);
       window.app.showToast('Physical memory reset to contiguous 1024 KB free space.', 'info');
       this.refresh();
     } catch (err) {

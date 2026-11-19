@@ -53,89 +53,135 @@
 
       <!-- ================= 1. DASHBOARD ================= -->
       <section id="view-dashboard" class="module-section view-section active">
-        <div class="grid-4 mb-3">
-          <div class="stat-card">
+        <div class="dashboard-summary mb-3">
+          <div class="stat-card dashboard-stat">
             <div class="stat-label">Files Stored</div>
             <div id="dash-total-files" class="stat-value">0</div>
             <div class="stat-subtext">Virtual inode hierarchy</div>
           </div>
-          <div class="stat-card">
+          <div class="stat-card dashboard-stat">
             <div class="stat-label">Block Usage</div>
             <div id="dash-allocated-blocks" class="stat-value">0 / 1024</div>
             <div id="dash-storage-usage-pct" class="stat-subtext">0% Allocated</div>
           </div>
-          <div class="stat-card">
+          <div class="stat-card dashboard-stat">
+            <div class="stat-label">Stored Data</div>
+            <div id="dash-total-bytes" class="stat-value">0 B</div>
+            <div id="dash-operation-count" class="stat-subtext">0 operations logged</div>
+          </div>
+          <div class="stat-card dashboard-stat">
             <div class="stat-label">Cache Hit Rate</div>
             <div id="dash-cache-hit-rate" class="stat-value highlight-teal">0.0%</div>
             <div id="dash-cache-ratio" class="stat-subtext">0 hits / 0 misses</div>
           </div>
-          <div class="stat-card">
-            <div class="stat-label">Storage Engine</div>
-            <div id="dash-alloc-strategy" class="stat-value" style="font-size: 1.15rem; margin-top: 5px;">FIRST_FIT</div>
-            <div id="dash-status-badge" class="stat-subtext highlight-blue">WAL Crash-Consistent</div>
+          <div class="stat-card dashboard-stat">
+            <div class="stat-label">Integrity</div>
+            <div id="dash-integrity-value" class="stat-value highlight-teal">Checking</div>
+            <div id="dash-integrity-detail" class="stat-subtext">Running backend audit</div>
+          </div>
+          <div class="stat-card dashboard-stat">
+            <div class="stat-label">Backend</div>
+            <div id="dash-backend-value" class="stat-value highlight-teal">Online</div>
+            <div id="dash-last-update" class="stat-subtext">Waiting for update</div>
           </div>
         </div>
 
         <div class="grid-2 mb-3">
-          <div class="panel">
+          <div class="panel dashboard-overview-panel">
             <div class="panel-header">
-              <span class="panel-title">System Overview & Architecture</span>
-              <button id="btn-dash-seed" class="btn btn-teal btn-sm">🌱 Seed Demo Files</button>
+              <span class="panel-title">Storage Snapshot</span>
+              <button id="btn-dash-seed" class="btn btn-teal btn-sm">Seed Demo Files</button>
             </div>
-            <p class="text-muted mb-2">
-              <strong>OSVault</strong> is an integrated Operating Systems laboratory and crash-consistent logical block storage engine built with pure C++17, SQLite (WAL mode), Crow, and standalone Asio.
-            </p>
-            <ul class="text-muted small" style="line-height: 1.8; padding-left: 1.25rem;">
-              <li><strong>Block Engine:</strong> 1024 discrete 4096-byte logical storage blocks with FIRST_FIT, BEST_FIT, and WORST_FIT allocation.</li>
-              <li><strong>Crash Consistency:</strong> SQLite Write-Ahead Logging (WAL) and orphan block verification engine.</li>
-              <li><strong>Concurrency:</strong> Peterson's algorithm, Bounded Buffer, Readers-Writers, and Dining Philosophers.</li>
-              <li><strong>Process Management:</strong> FCFS, SJF (Preemptive/Non-preemptive), Round Robin, and Priority Scheduling with live Gantt charts.</li>
-              <li><strong>Distributed Clocks:</strong> Lamport timestamps and Vector clocks with causal concurrency verification.</li>
-            </ul>
+            <div class="dashboard-storage-visual">
+              <div class="dashboard-visual-header">
+                <span>Logical block capacity</span>
+                <strong id="dash-block-percent">0% used</strong>
+              </div>
+              <div class="dashboard-progress" aria-label="Allocated storage">
+                <div id="dash-block-progress" class="dashboard-progress-used" style="width: 0%"></div>
+              </div>
+              <div class="dashboard-visual-grid">
+                <div>
+                  <span class="dashboard-visual-label">Allocated</span>
+                  <strong id="dash-blocks-used">0 blocks</strong>
+                </div>
+                <div>
+                  <span class="dashboard-visual-label">Available</span>
+                  <strong id="dash-blocks-free">1024 blocks</strong>
+                </div>
+              </div>
+            </div>
+            <div class="dashboard-storage-visual">
+              <div class="dashboard-visual-header">
+                <span>Cache efficiency</span>
+                <strong id="dash-cache-percent">0%</strong>
+              </div>
+              <div class="dashboard-progress cache">
+                <div id="dash-cache-progress" class="dashboard-progress-used" style="width: 0%"></div>
+              </div>
+              <div class="dashboard-visual-grid">
+                <div>
+                  <span class="dashboard-visual-label">Hits</span>
+                  <strong id="dash-cache-hits-detail">0</strong>
+                </div>
+                <div>
+                  <span class="dashboard-visual-label">Misses</span>
+                  <strong id="dash-cache-misses-detail">0</strong>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div class="panel">
             <div class="panel-header">
+              <span class="panel-title">Operating Systems Laboratory</span>
+              <span id="dash-modules-online" class="badge badge-secondary">Checking</span>
+            </div>
+            <div id="dash-module-grid" class="dashboard-module-grid">
+              <button class="dashboard-module-card" data-dashboard-view="files"><strong>Virtual Filesystem</strong><span>Storage</span><em>Checking</em></button>
+              <button class="dashboard-module-card" data-dashboard-view="blocks"><strong>Block Storage</strong><span>1024 blocks</span><em>Checking</em></button>
+              <button class="dashboard-module-card" data-dashboard-view="cache"><strong>Page Cache</strong><span>FIFO / LRU</span><em>Checking</em></button>
+              <button class="dashboard-module-card" data-dashboard-view="scheduler"><strong>CPU Scheduler</strong><span>Scheduling</span><em>Checking</em></button>
+              <button class="dashboard-module-card" data-dashboard-view="memory"><strong>Memory Manager</strong><span>Allocation</span><em>Checking</em></button>
+              <button class="dashboard-module-card" data-dashboard-view="sync"><strong>Synchronization</strong><span>Concurrency</span><em>Checking</em></button>
+              <button class="dashboard-module-card" data-dashboard-view="deadlock"><strong>Deadlock</strong><span>Banker's algorithm</span><em>Checking</em></button>
+              <button class="dashboard-module-card" data-dashboard-view="ipc"><strong>IPC</strong><span>Processes</span><em>Checking</em></button>
+              <button class="dashboard-module-card" data-dashboard-view="clocks"><strong>Logical Clocks</strong><span>Lamport / Vector</span><em>Checking</em></button>
+              <button class="dashboard-module-card" data-dashboard-view="logs"><strong>Operation Logs</strong><span>Audit trail</span><em>Checking</em></button>
+              <button class="dashboard-module-card" data-dashboard-view="recovery"><strong>Recovery</strong><span>Crash consistency</span><em>Checking</em></button>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="panel mb-0">
+            <div class="panel-header">
               <span class="panel-title">Recent Virtual Files</span>
-              <a href="#files" class="btn btn-secondary btn-sm" onclick="app.switchView('files')">View All</a>
+              <a href="#files" class="btn btn-secondary btn-sm" data-dashboard-view="files">View All</a>
             </div>
             <div class="table-wrap">
               <table class="data-table">
-                <thead>
-                  <tr>
-                    <th>Filename</th>
-                    <th>Size</th>
-                    <th>Blocks</th>
-                    <th>Created</th>
-                  </tr>
-                </thead>
+                <thead><tr><th>Filename</th><th>Size</th><th>Blocks</th><th>Created</th></tr></thead>
                 <tbody id="dash-recent-files-body">
                   <tr><td colspan="4" class="text-muted text-center p-3">No files in virtual storage.</td></tr>
                 </tbody>
               </table>
             </div>
           </div>
-        </div>
 
-        <div class="panel">
-          <div class="panel-header">
-            <span class="panel-title">Recent Operation Log Events</span>
-            <a href="#logs" class="btn btn-secondary btn-sm" onclick="app.switchView('logs')">Full Audit Log</a>
-          </div>
-          <div class="table-wrap">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Event</th>
-                  <th>Description</th>
-                  <th>Timestamp</th>
-                </tr>
-              </thead>
-              <tbody id="dash-recent-logs-body">
-                <tr><td colspan="4" class="text-muted text-center p-3">Loading log stream...</td></tr>
-              </tbody>
-            </table>
+          <div class="panel mb-0">
+            <div class="panel-header">
+              <span class="panel-title">Recent Operation Log Events</span>
+              <a href="#logs" class="btn btn-secondary btn-sm" data-dashboard-view="logs">Full Audit Log</a>
+            </div>
+            <div class="table-wrap">
+              <table class="data-table">
+                <thead><tr><th>ID</th><th>Event</th><th>Description</th><th>Timestamp</th></tr></thead>
+                <tbody id="dash-recent-logs-body">
+                  <tr><td colspan="4" class="text-muted text-center p-3">Loading log stream...</td></tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </section>
@@ -146,9 +192,16 @@
           <div class="panel-header">
             <span class="panel-title">Virtual File System Manager</span>
             <div class="d-flex gap-2">
+              <button id="btn-new-folder" class="btn btn-secondary btn-sm">+ New Folder</button>
               <button id="btn-create-file-modal" class="btn btn-primary btn-sm">+ Create File</button>
               <button id="btn-refresh-files" class="btn btn-secondary btn-sm">⟳ Refresh</button>
             </div>
+          </div>
+          <div id="file-breadcrumb" class="file-breadcrumb mb-2"></div>
+          <div id="directory-create-row" class="file-directory-create mb-2" style="display:none;">
+            <input type="text" id="directory-name" class="input" placeholder="New folder name">
+            <button id="btn-create-folder" class="btn btn-teal btn-sm">Create</button>
+            <button id="btn-cancel-folder" class="btn btn-secondary btn-sm">Cancel</button>
           </div>
           <div class="d-flex justify-between align-center mb-3">
             <div style="max-width: 300px; width: 100%;">
@@ -190,7 +243,20 @@
                 <option value="WORST_FIT">WORST_FIT</option>
               </select>
               <button id="btn-apply-strategy" class="btn btn-teal btn-sm">Set Strategy</button>
+              <button id="btn-block-demo" class="btn btn-primary btn-sm">Create Demo File</button>
+              <button id="btn-block-demo-delete" class="btn btn-danger btn-sm" disabled>Delete Demo File</button>
             </div>
+          </div>
+
+          <div id="block-demo-details" class="block-demo-details mb-3" style="display:none;">
+            <div class="block-demo-title">Block Allocation Demonstration</div>
+            <div class="block-demo-grid">
+              <div><span>File name</span><strong id="block-demo-name">-</strong></div>
+              <div><span>Actual file size</span><strong id="block-demo-size">-</strong></div>
+              <div><span>Allocated blocks</span><strong id="block-demo-count">-</strong></div>
+              <div><span>Block IDs</span><strong id="block-demo-ids">-</strong></div>
+            </div>
+            <p id="block-demo-explanation" class="block-demo-explanation"></p>
           </div>
 
           <div class="legend-bar">
@@ -270,6 +336,24 @@
               </div>
             </div>
           </div>
+          <div class="grid-3 mb-3">
+            <div class="form-group mb-0">
+              <label class="form-label">Page Size (bytes):</label>
+              <input type="number" id="page-size" class="input" value="4096" min="1" max="1048576">
+            </div>
+            <div class="form-group mb-0">
+              <label class="form-label">Logical Address (for translation):</label>
+              <input type="number" id="logical-address" class="input" value="8192" min="0">
+            </div>
+            <div class="form-group mb-0">
+              <label class="form-label">Playback:</label>
+              <div class="d-flex gap-2">
+                <button id="btn-page-prev" class="btn btn-secondary btn-sm">Previous</button>
+                <button id="btn-page-play" class="btn btn-primary btn-sm">Play</button>
+                <button id="btn-page-next" class="btn btn-secondary btn-sm">Next</button>
+              </div>
+            </div>
+          </div>
           <div id="page-sim-stats" class="mb-2"></div>
           <div id="page-sim-container" class="table-wrap">
             <div class="text-muted p-3 text-center">Click "Simulate" to execute the page replacement algorithm step-by-step.</div>
@@ -317,7 +401,6 @@
                 <select id="sched-algo" class="select">
                   <option value="FCFS">First-Come, First-Served (FCFS)</option>
                   <option value="SJF">SJF (Shortest Job First - Non-Preemptive)</option>
-                  <option value="SRTF">SRTF (Shortest Remaining Time First - Preemptive)</option>
                   <option value="RR">Round Robin (RR)</option>
                   <option value="PRIORITY">Priority (Non-Preemptive)</option>
                 </select>
@@ -343,6 +426,14 @@
               <span>CPU Utilization: <strong id="sched-cpu-util" class="highlight-teal">100%</strong></span>
             </div>
           </div>
+          <div class="d-flex justify-between align-center mb-2">
+            <span id="sched-step-status" class="text-muted small">No simulation running.</span>
+            <div class="d-flex gap-2">
+              <button id="btn-sched-prev" class="btn btn-secondary btn-sm">Previous</button>
+              <button id="btn-sched-play" class="btn btn-primary btn-sm">Play</button>
+              <button id="btn-sched-next" class="btn btn-secondary btn-sm">Next</button>
+            </div>
+          </div>
           <div id="gantt-chart-container" class="gantt-chart">
             <div class="gantt-bar idle" style="width: 100%;">Run scheduler to generate Gantt chart</div>
           </div>
@@ -363,10 +454,11 @@
                   <th>Completion Time</th>
                   <th>Turnaround Time</th>
                   <th>Waiting Time</th>
+                  <th>Response Time</th>
                 </tr>
               </thead>
               <tbody id="sched-metrics-body">
-                <tr><td colspan="6" class="text-center text-muted p-3">No simulation data available yet.</td></tr>
+                <tr><td colspan="7" class="text-center text-muted p-3">No simulation data available yet.</td></tr>
               </tbody>
             </table>
           </div>
@@ -397,6 +489,21 @@
             <div class="stat-label">External Fragmentation</div>
             <div id="mem-ext-frag-stat" class="stat-value highlight-red">0 KB</div>
             <div class="stat-subtext">Non-contiguous free holes</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Memory Utilization</div>
+            <div id="mem-util-stat" class="stat-value highlight-blue">0.0%</div>
+            <div class="stat-subtext">Allocated physical memory</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Free Partitions</div>
+            <div id="mem-free-holes-stat" class="stat-value">1</div>
+            <div class="stat-subtext">Unallocated memory blocks</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Internal Fragmentation</div>
+            <div id="mem-int-frag-stat" class="stat-value">0 KB</div>
+            <div class="stat-subtext">Reported within allocations</div>
           </div>
         </div>
 
@@ -431,6 +538,10 @@
           </div>
 
           <label class="form-label">Physical Memory Map (0 - 1024 KB):</label>
+          <div class="legend-bar mb-2">
+            <span class="legend-item"><span class="legend-swatch" style="background:#0d9488"></span> Allocated</span>
+            <span class="legend-item"><span class="legend-swatch" style="background:#1e293b"></span> Free hole</span>
+          </div>
           <div id="memory-map-container" class="memory-bar mb-3"></div>
 
           <div class="table-wrap">
@@ -449,6 +560,12 @@
                 <tr><td colspan="6" class="text-center text-muted p-3">Memory fully free (1024 KB).</td></tr>
               </tbody>
             </table>
+          </div>
+          <div class="panel-header mt-3">
+            <span class="panel-title">Recent Allocation Actions</span>
+          </div>
+          <div id="memory-action-history" class="memory-action-history text-muted small">
+            No allocation actions yet.
           </div>
         </div>
       </section>

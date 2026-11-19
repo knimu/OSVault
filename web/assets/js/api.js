@@ -48,40 +48,60 @@ window.api = {
   },
 
   // Files
-  listFiles(query = '') {
-    const q = query ? `?q=${encodeURIComponent(query)}` : '';
-    return this.request(`/api/files${q}`);
+  listFiles(query = '', directoryId = 0) {
+    const params = new URLSearchParams();
+    if (query) params.append('q', query);
+    params.append('directory_id', directoryId);
+    return this.request(`/api/files?${params.toString()}`);
   },
-  readFile(name) {
-    return this.request(`/api/files/${encodeURIComponent(name)}`);
+  readFile(name, directoryId = 0) {
+    return this.request(`/api/files/${encodeURIComponent(name)}?directory_id=${directoryId}`);
   },
-  createFile(name, content = '') {
+  createFile(name, content = '', directoryId = 0) {
     return this.request('/api/files', {
       method: 'POST',
-      body: JSON.stringify({ name, content })
+      body: JSON.stringify({ name, content, directory_id: directoryId })
     });
   },
-  writeFile(name, content) {
+  writeFile(name, content, directoryId = 0) {
     return this.request(`/api/files/${encodeURIComponent(name)}`, {
       method: 'PUT',
-      body: JSON.stringify({ content })
+      body: JSON.stringify({ content, directory_id: directoryId })
     });
   },
-  renameFile(oldName, newName) {
+  renameFile(oldName, newName, directoryId = 0) {
     return this.request(`/api/files/${encodeURIComponent(oldName)}/rename`, {
       method: 'POST',
-      body: JSON.stringify({ new_name: newName })
+      body: JSON.stringify({ new_name: newName, directory_id: directoryId })
     });
   },
-  deleteFile(name) {
-    return this.request(`/api/files/${encodeURIComponent(name)}`, {
+  deleteFile(name, directoryId = 0) {
+    return this.request(`/api/files/${encodeURIComponent(name)}?directory_id=${directoryId}`, {
       method: 'DELETE'
     });
+  },
+  listDirectories(parentId = 0) {
+    return this.request(`/api/directories?directory_id=${parentId}`);
+  },
+  createDirectory(name, parentId = 0) {
+    return this.request('/api/directories', {
+      method: 'POST',
+      body: JSON.stringify({ name, parent_id: parentId })
+    });
+  },
+  deleteDirectory(directoryId) {
+    return this.request(`/api/directories/${directoryId}`, { method: 'DELETE' });
   },
 
   // Blocks
   getBlocks() { return this.request('/api/blocks'); },
   getBlock(id) { return this.request(`/api/blocks/${id}`); },
+  setBlockStrategy(strategy) {
+    return this.request('/api/blocks/strategy', {
+      method: 'POST',
+      body: JSON.stringify({ strategy })
+    });
+  },
 
   // Cache & Paging
   getCacheStats() { return this.request('/api/cache/stats'); },
@@ -111,16 +131,16 @@ window.api = {
 
   // Memory Management
   getMemoryState() { return this.request('/api/memory/state'); },
-  allocateMemory(processId, sizeBytes) {
+  allocateMemory(processName, sizeKb, strategy = 'FIRST_FIT') {
     return this.request('/api/memory/allocate', {
       method: 'POST',
-      body: JSON.stringify({ process_id: processId, size_bytes: sizeBytes })
+      body: JSON.stringify({ process_name: processName, size: sizeKb, strategy })
     });
   },
-  deallocateMemory(blockId) {
+  deallocateMemory(partitionId) {
     return this.request('/api/memory/deallocate', {
       method: 'POST',
-      body: JSON.stringify({ block_id: blockId })
+      body: JSON.stringify({ partition_id: partitionId })
     });
   },
   resetMemory() {

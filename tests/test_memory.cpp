@@ -4,6 +4,16 @@
 using namespace osvault;
 
 TEST_SUITE("memory") {
+    TEST_CASE("Duplicate and invalid allocations are rejected") {
+        MemoryManager mm(1024);
+
+        CHECK(mm.allocate_first_fit("P1", 128).is_ok());
+        CHECK(mm.allocate_first_fit("P1", 64).code() == 409);
+        CHECK(mm.allocate_first_fit("", 64).code() == 400);
+        CHECK(mm.allocate_first_fit("P2", 0).code() == 400);
+        CHECK(mm.allocate_first_fit("P2", 2048).code() == 422);
+    }
+
     TEST_CASE("First Fit, Best Fit, and Worst Fit selection") {
         // Initial custom partitions: 100, 500, 200, 300, 600
         MemoryManager mm;
@@ -56,5 +66,16 @@ TEST_SUITE("memory") {
         // State: [P1:200, Free:800]
         CHECK(mm.get_state().partitions.size() == 2);
         CHECK(mm.get_state().partitions[1].size == 800);
+    }
+
+    TEST_CASE("External fragmentation reflects separate free holes") {
+        MemoryManager mm;
+        mm.reset_with_custom_partitions({100, 500, 200, 300});
+
+        CHECK(mm.allocate_first_fit("P1", 300).is_ok());
+        auto state = mm.get_state();
+        CHECK(state.allocated_memory == 300);
+        CHECK(state.free_memory == 800);
+        CHECK(state.external_fragmentation == 500);
     }
 }

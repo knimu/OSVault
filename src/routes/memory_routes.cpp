@@ -50,8 +50,15 @@ void register_memory_routes(crow::SimpleApp& app, ServerContext& ctx) {
         }
 
         std::string proc = json["process_name"].s();
-        size_t size = static_cast<size_t>(json["size"].i());
+        int64_t requested_size = json["size"].i();
+        if (proc.empty()) return crow::response(400, "Process name cannot be empty.");
+        if (proc.size() > 32) return crow::response(400, "Process name cannot exceed 32 characters.");
+        if (requested_size <= 0) return crow::response(400, "Allocation size must be greater than 0 KB.");
+        size_t size = static_cast<size_t>(requested_size);
         std::string strat = json.has("strategy") ? std::string(json["strategy"].s()) : "FIRST_FIT";
+        if (strat != "FIRST_FIT" && strat != "BEST_FIT" && strat != "WORST_FIT") {
+            return crow::response(400, "Strategy must be FIRST_FIT, BEST_FIT, or WORST_FIT.");
+        }
 
         Result<MemoryAllocationResult> alloc_res = (strat == "BEST_FIT")
             ? ctx.memory.allocate_best_fit(proc, size)
@@ -105,7 +112,11 @@ void register_memory_routes(crow::SimpleApp& app, ServerContext& ctx) {
     CROW_ROUTE(app, "/api/memory/reset").methods(crow::HTTPMethod::Post)
     ([&ctx](const crow::request& req) {
         auto json = crow::json::load(req.body);
-        size_t total = (json && json.has("total_size")) ? static_cast<size_t>(json["total_size"].i()) : 1024;
+        int64_t requested_total = (json && json.has("total_size")) ? json["total_size"].i() : 1024;
+        if (requested_total <= 0 || requested_total > 1048576) {
+            return crow::response(400, "total_size must be between 1 and 1048576 KB.");
+        }
+        size_t total = static_cast<size_t>(requested_total);
         ctx.memory.reset(total);
 
         crow::json::wvalue res;

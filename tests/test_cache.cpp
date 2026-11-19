@@ -15,7 +15,16 @@ TEST_SUITE("cache") {
 
         CHECK(r.total_hits == 5);
         CHECK(r.total_misses == 15);
+        CHECK(r.hit_ratio == doctest::Approx(25.0));
+        CHECK(r.miss_ratio == doctest::Approx(75.0));
+        CHECK(r.page_size == 4096);
         CHECK(r.steps.size() == seq.size());
+        CHECK(r.steps[0].page == 7);
+        CHECK(r.steps[0].logical_address == 28672);
+        CHECK(r.steps[0].physical_address == 0);
+        CHECK(r.steps[0].frame == 0);
+        CHECK(r.steps[0].page_table.size() == 1);
+        CHECK(r.steps[0].page_table[0].present);
     }
 
     TEST_CASE("LRU textbook page replacement validation") {
@@ -29,6 +38,8 @@ TEST_SUITE("cache") {
 
         CHECK(r.total_hits == 8);
         CHECK(r.total_misses == 12);
+        CHECK(r.hit_ratio == doctest::Approx(40.0));
+        CHECK(r.miss_ratio == doctest::Approx(60.0));
         CHECK(r.steps.size() == seq.size());
     }
 
@@ -40,6 +51,14 @@ TEST_SUITE("cache") {
         // Invalid frame count <= 0
         CHECK(CacheManager::simulate_fifo({1, 2}, 0).is_error());
         CHECK(CacheManager::simulate_lru({1, 2}, -1).is_error());
+        CHECK(CacheManager::simulate_fifo({-1, 2}, 2).is_error());
+        CHECK(CacheManager::simulate_lru({1, 2}, 2, 0).is_error());
+
+        auto page_size = CacheManager::simulate_fifo({2, 1, 2}, 2, 1024);
+        CHECK(page_size.is_ok());
+        CHECK(page_size.value().page_size == 1024);
+        CHECK(page_size.value().steps[0].logical_address == 2048);
+        CHECK(page_size.value().steps[0].physical_address == 0);
 
         // Comparison mode
         auto cmp = CacheManager::simulate_comparison({1, 2, 1, 3}, 2);

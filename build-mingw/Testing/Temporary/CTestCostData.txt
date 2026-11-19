@@ -1,0 +1,11 @@
+test_database 9 0.00493296
+test_storage 10 0.00244514
+test_cache 9 0.00222471
+test_scheduler 9 0.00241778
+test_memory 9 0.00237199
+test_deadlock 8 0.00305765
+test_synchronization 8 0.00238975
+test_clocks 8 0.00237789
+test_recovery 8 0.00241319
+test_api 8 0.0023917
+---

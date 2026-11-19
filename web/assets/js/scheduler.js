@@ -3,6 +3,10 @@
  */
 
 window.schedulerModule = {
+  result: null,
+  stepIndex: 0,
+  playbackTimer: null,
+
   processes: [
     { pid: 'P1', arrival_time: 0, burst_time: 5, priority: 2 },
     { pid: 'P2', arrival_time: 1, burst_time: 3, priority: 1 },
@@ -40,6 +44,15 @@ window.schedulerModule = {
     if (btnCompare) {
       btnCompare.onclick = () => this.compareAll();
     }
+
+    const prev = document.getElementById('btn-sched-prev');
+    if (prev) prev.onclick = () => this.stopPlayback(() => this.moveStep(-1));
+
+    const next = document.getElementById('btn-sched-next');
+    if (next) next.onclick = () => this.stopPlayback(() => this.moveStep(1));
+
+    const play = document.getElementById('btn-sched-play');
+    if (play) play.onclick = () => this.togglePlayback();
   },
 
   renderProcessQueue() {
@@ -79,6 +92,26 @@ window.schedulerModule = {
       window.app.showToast('Please specify a PID', 'warning');
       return;
     }
+    if (!/^[A-Za-z0-9_-]{1,32}$/.test(pid)) {
+      window.app.showToast('PID may contain 1-32 letters, digits, underscores or dashes.', 'warning');
+      return;
+    }
+    if (arrival < 0) {
+      window.app.showToast('Arrival time cannot be negative.', 'warning');
+      return;
+    }
+    if (burst <= 0) {
+      window.app.showToast('Burst time must be greater than zero.', 'warning');
+      return;
+    }
+    if (priority < 1) {
+      window.app.showToast('Priority must be at least 1; lower values run first.', 'warning');
+      return;
+    }
+    if (this.processes.some(p => p.pid === pid)) {
+      window.app.showToast(`PID '${pid}' already exists.`, 'warning');
+      return;
+    }
 
     this.processes.push({ pid, arrival_time: arrival, burst_time: burst, priority });
     this.renderProcessQueue();
@@ -103,6 +136,10 @@ window.schedulerModule = {
 
     const algo = algoSelect ? algoSelect.value : 'FCFS';
     const quantum = quantumInput ? parseInt(quantumInput.value, 10) || 2 : 2;
+    if (algo === 'RR' && (quantum < 1 || quantum > 20)) {
+      window.app.showToast('Round Robin quantum must be between 1 and 20.', 'warning');
+      return;
+    }
 
     try {
       const res = await window.api.request('/api/scheduler/simulate', {
@@ -166,10 +203,10 @@ window.schedulerModule = {
               ${list.map(c => `
                 <tr>
                   <td><strong class="highlight-blue">${c.algorithm}</strong></td>
-                  <td class="font-mono">${(c.average_turnaround_time || 0).toFixed(2)}</td>
-                  <td class="font-mono highlight-teal"><strong>${(c.average_waiting_time || 0).toFixed(2)}</strong></td>
-                  <td>${(c.cpu_utilization || 100).toFixed(1)}%</td>
-                  <td>${c.total_execution_time || 0}</td>
+                  <td class="font-mono">${(c.avg_turnaround_time || 0).toFixed(2)}</td>
+                  <td class="font-mono highlight-teal"><strong>${(c.avg_waiting_time || 0).toFixed(2)}</strong></td>
+                  <td>${this.calculateCpuUtilization(c).toFixed(1)}%</td>
+                  <td>${c.total_time || 0}</td>
                 </tr>
               `).join('')}
             </tbody>
@@ -187,13 +224,17 @@ window.schedulerModule = {
   },
 
   displayResults(r) {
+    this.stopPlayback();
+    this.result = r;
+    this.stepIndex = 0;
+
     const avgTAT = document.getElementById('sched-avg-turnaround');
     const avgWT = document.getElementById('sched-avg-waiting');
     const cpuUtil = document.getElementById('sched-cpu-util');
 
-    if (avgTAT) avgTAT.textContent = `${(r.average_turnaround_time || 0).toFixed(2)} units`;
-    if (avgWT) avgWT.textContent = `${(r.average_waiting_time || 0).toFixed(2)} units`;
-    if (cpuUtil) cpuUtil.textContent = `${(r.cpu_utilization || 100).toFixed(1)}%`;
+    if (avgTAT) avgTAT.textContent = `${(r.avg_turnaround_time || 0).toFixed(2)} units`;
+    if (avgWT) avgWT.textContent = `${(r.avg_waiting_time || 0).toFixed(2)} units`;
+    if (cpuUtil) cpuUtil.textContent = `${this.calculateCpuUtilization(r).toFixed(1)}%`;
 
     // Render Gantt chart
     const ganttContainer = document.getElementById('gantt-chart-container');
@@ -201,14 +242,13 @@ window.schedulerModule = {
 
     if (ganttContainer) {
       ganttContainer.innerHTML = '';
-      const totalTime = r.total_execution_time || 1;
+      const totalTime = r.total_time || 1;
 
-      (r.gantt_chart || []).forEach(bar => {
+      (r.gantt_chart || []).forEach((bar, index) => {
         const duration = bar.end_time - bar.start_time;
         const widthPct = Math.max(1, (duration / totalTime) * 100);
-
         const el = document.createElement('div');
-        el.className = `gantt-bar ${bar.is_idle ? 'idle' : ''}`;
+        el.className = `gantt-bar ${bar.is_idle ? 'idle' : ''} ${index === this.stepIndex ? 'scheduler-current' : ''}`;
         el.style.width = `${widthPct}%`;
         el.style.backgroundColor = bar.is_idle ? '#334155' : this.getPidColor(bar.pid);
         el.textContent = bar.is_idle ? 'IDLE' : bar.pid;
@@ -218,13 +258,13 @@ window.schedulerModule = {
     }
 
     if (labelsContainer) {
-      labelsContainer.innerHTML = `<span>0</span><span>Total Execution Time: ${r.total_execution_time || 0} units</span>`;
+      labelsContainer.innerHTML = `<span>0</span><span>Total Execution Time: ${r.total_time || 0} units</span>`;
     }
 
     // Render process metrics table
     const tbody = document.getElementById('sched-metrics-body');
     if (tbody) {
-      tbody.innerHTML = (r.metrics || []).map(m => `
+      tbody.innerHTML = (r.processes || []).map(m => `
         <tr>
           <td class="font-mono"><strong>${this.escape(m.pid)}</strong></td>
           <td>${m.arrival_time || 0}</td>
@@ -232,9 +272,72 @@ window.schedulerModule = {
           <td class="font-mono">${m.completion_time || 0}</td>
           <td class="font-mono highlight-blue">${m.turnaround_time || 0}</td>
           <td class="font-mono highlight-teal"><strong>${m.waiting_time || 0}</strong></td>
+          <td class="font-mono">${m.response_time || 0}</td>
         </tr>
       `).join('');
     }
+
+    this.renderStep();
+  },
+
+  calculateCpuUtilization(result) {
+    if (!result || !result.total_time || result.total_time <= 0) return 0;
+    const idle = result.idle_time || 0;
+    return Math.max(0, Math.min(100, ((result.total_time - idle) / result.total_time) * 100));
+  },
+
+  renderStep() {
+    if (!this.result || !(this.result.gantt_chart || []).length) return;
+    const ganttContainer = document.getElementById('gantt-chart-container');
+    const status = document.getElementById('sched-step-status');
+    const bars = ganttContainer ? ganttContainer.querySelectorAll('.gantt-bar') : [];
+    bars.forEach((bar, index) => bar.classList.toggle('scheduler-current', index === this.stepIndex));
+
+    const interval = this.result.gantt_chart[this.stepIndex];
+    if (!interval) return;
+    if (status) {
+      status.textContent = interval.is_idle
+        ? `Step ${this.stepIndex + 1}: CPU idle from ${interval.start_time} to ${interval.end_time}`
+        : `Step ${this.stepIndex + 1}: ${interval.pid} runs from ${interval.start_time} to ${interval.end_time}`;
+    }
+  },
+
+  moveStep(delta) {
+    if (!this.result) return;
+    const total = (this.result.gantt_chart || []).length;
+    if (total === 0) return;
+    this.stepIndex = Math.max(0, Math.min(total - 1, this.stepIndex + delta));
+    this.renderStep();
+  },
+
+  togglePlayback() {
+    if (!this.result) {
+      window.app.showToast('Run a scheduling simulation first.', 'warning');
+      return;
+    }
+    if (this.playbackTimer) {
+      this.stopPlayback();
+      return;
+    }
+    const button = document.getElementById('btn-sched-play');
+    if (button) button.textContent = 'Pause';
+    this.playbackTimer = setInterval(() => {
+      if (this.stepIndex >= this.result.gantt_chart.length - 1) {
+        this.stopPlayback();
+        return;
+      }
+      this.moveStep(1);
+    }, 900);
+  },
+
+  stopPlayback(callback) {
+    if (this.playbackTimer) {
+      clearInterval(this.playbackTimer);
+      this.playbackTimer = null;
+    }
+    const button = document.getElementById('btn-sched-play');
+    if (button) button.textContent = 'Play';
+    if (callback) callback();
   },
 
   getPidColor(pid) {

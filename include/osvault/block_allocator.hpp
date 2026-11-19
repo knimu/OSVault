@@ -17,6 +17,8 @@ public:
 
     Result<std::vector<BlockInfo>> get_all_blocks();
     Result<BlockInfo> get_block(int block_id);
+    void set_strategy(const std::string& strategy);
+    std::string strategy() const noexcept { return strategy_; }
 
     size_t total_blocks() const noexcept { return total_blocks_; }
     Result<size_t> get_free_block_count();
@@ -25,6 +27,7 @@ public:
 private:
     Database& db_;
     size_t total_blocks_;
+    std::string strategy_{"FIRST_FIT"};
 };
 
 } // namespace osvault

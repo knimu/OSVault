@@ -1,0 +1,8 @@
+{
+	"InstallScripts" : 
+	[
+		"C:/Users/knimi/OneDrive/Desktop/OSVault/OSVault/build-mingw/cmake_install.cmake",
+		"C:/Users/knimi/OneDrive/Desktop/OSVault/OSVault/build-mingw/tests/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

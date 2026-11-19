@@ -14,13 +14,23 @@ public:
     StorageEngine(Database& db, BlockAllocator& allocator, size_t block_size = 4096);
 
     Result<FileRecord> create_file(const std::string& name, const std::string& content = "");
+    Result<FileRecord> create_file(const std::string& name, const std::string& content, int64_t directory_id);
     Result<std::string> read_file(const std::string& name);
+    Result<std::string> read_file(const std::string& name, int64_t directory_id);
     Result<FileRecord> get_file_metadata(const std::string& name);
+    Result<FileRecord> get_file_metadata(const std::string& name, int64_t directory_id);
     Result<FileRecord> get_file_metadata_by_id(int64_t file_id);
     Result<void> write_file(const std::string& name, const std::string& new_content);
+    Result<void> write_file(const std::string& name, const std::string& new_content, int64_t directory_id);
     Result<void> rename_file(const std::string& old_name, const std::string& new_name);
+    Result<void> rename_file(const std::string& old_name, const std::string& new_name, int64_t directory_id);
     Result<void> delete_file(const std::string& name);
+    Result<void> delete_file(const std::string& name, int64_t directory_id);
     Result<std::vector<FileRecord>> list_files(const std::string& search_query = "");
+    Result<std::vector<FileRecord>> list_directory(int64_t directory_id, const std::string& search_query = "");
+    Result<DirectoryRecord> create_directory(const std::string& name, int64_t parent_id = 0);
+    Result<std::vector<DirectoryRecord>> list_directories(int64_t parent_id = 0);
+    Result<void> delete_directory(int64_t directory_id);
 
     Result<SystemMetrics> get_system_metrics();
 
@@ -28,6 +38,7 @@ public:
     size_t total_capacity_bytes() const noexcept { return block_size_ * allocator_.total_blocks(); }
 
     static bool is_valid_filename(const std::string& name);
+    static bool is_valid_directory_name(const std::string& name);
     static size_t calculate_blocks_needed(size_t byte_count, size_t block_size);
 
 private:

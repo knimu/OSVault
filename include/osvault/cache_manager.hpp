@@ -33,10 +33,10 @@ public:
     double hit_ratio() const noexcept;
 
     // Educational Page-Replacement Simulator
-    static Result<PageReplacementResult> simulate_fifo(const std::vector<int>& sequence, int frame_count);
-    static Result<PageReplacementResult> simulate_lru(const std::vector<int>& sequence, int frame_count);
+    static Result<PageReplacementResult> simulate_fifo(const std::vector<int>& sequence, int frame_count, int page_size = 4096);
+    static Result<PageReplacementResult> simulate_lru(const std::vector<int>& sequence, int frame_count, int page_size = 4096);
     static Result<std::pair<PageReplacementResult, PageReplacementResult>> simulate_comparison(
-        const std::vector<int>& sequence, int frame_count);
+        const std::vector<int>& sequence, int frame_count, int page_size = 4096);
 
 private:
     size_t capacity_{16};

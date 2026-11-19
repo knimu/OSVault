@@ -1,5 +1,6 @@
 #pragma once
 #include <cstddef>
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -8,11 +9,19 @@ namespace osvault {
 struct FileRecord {
     int64_t id = 0;
     std::string name;
+    int64_t directory_id = 0;
     size_t size = 0;
     size_t block_count = 0;
     std::vector<int> block_ids;
     std::string created_at;
     std::string updated_at;
+};
+
+struct DirectoryRecord {
+    int64_t id = 0;
+    std::string name;
+    int64_t parent_id = 0;
+    std::string created_at;
 };
 
 struct BlockInfo {
@@ -21,6 +30,7 @@ struct BlockInfo {
     int64_t owner_file_id = 0;
     std::string owner_file_name;
     int block_index_in_file = -1;
+    std::string payload;
 };
 
 struct SystemMetrics {
@@ -48,17 +58,29 @@ struct LogRecord {
     std::string related_id;
 };
 
+struct PageTableEntry {
+    int page = 0;
+    int frame = -1;
+    bool present = false;
+};
+
 struct PageStep {
     int page = 0;
     std::vector<int> frames;
     bool hit = false;
     int evicted_page = -1;
+    int frame = -1;
+    int offset = 0;
+    int logical_address = 0;
+    int physical_address = -1;
+    std::vector<PageTableEntry> page_table;
 };
 
 struct PageReplacementResult {
     std::string algorithm;
     std::vector<int> sequence;
     int frame_count = 0;
+    int page_size = 4096;
     std::vector<PageStep> steps;
     int total_hits = 0;
     int total_misses = 0;

@@ -241,10 +241,19 @@ Result<void> Database::initialize_schema() {
         CREATE TABLE IF NOT EXISTS files (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT UNIQUE NOT NULL,
+            directory_id INTEGER NOT NULL DEFAULT 0,
             size INTEGER NOT NULL,
             block_count INTEGER NOT NULL,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS directories (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            parent_id INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL,
+            UNIQUE(parent_id, name)
         );
 
         CREATE TABLE IF NOT EXISTS file_blocks (
@@ -293,6 +302,22 @@ Result<void> Database::initialize_schema() {
     auto res = execute(schema_sql);
     if (res.is_error()) return res;
 
+    auto pragma_res = prepare("PRAGMA table_info(files);");
+    if (pragma_res.is_ok()) {
+        bool has_directory_id = false;
+        auto stmt = std::move(pragma_res.value());
+        while (stmt.step()) {
+            if (stmt.column_text(1) == "directory_id") {
+                has_directory_id = true;
+                break;
+            }
+        }
+        if (!has_directory_id) {
+            auto alter_res = execute("ALTER TABLE files ADD COLUMN directory_id INTEGER NOT NULL DEFAULT 0;");
+            if (alter_res.is_error()) return alter_res;
+        }
+    }
+
     // Check schema version and populate blocks table if empty
     int current_version = get_schema_version();
     if (current_version < 1) {
@@ -332,7 +357,18 @@ Result<void> Database::reset_demo_data() {
     execute("BEGIN TRANSACTION;");
     execute("DELETE FROM file_blocks;");
     execute("DELETE FROM files;");
+    execute("DELETE FROM directories;");
     execute("UPDATE block_allocations SET is_allocated = 0, owner_file_id = NULL, block_index_in_file = -1, updated_at = datetime('now');");
+    auto ins_res = prepare("INSERT OR IGNORE INTO block_allocations (block_id, is_allocated, owner_file_id, block_index_in_file, updated_at) VALUES (?, 0, NULL, -1, datetime('now'));");
+    if (ins_res.is_ok()) {
+        auto ins = std::move(ins_res.value());
+        for (int i = 0; i < 1024; ++i) {
+            ins.reset();
+            ins.clear_bindings();
+            ins.bind_int(1, i);
+            ins.execute();
+        }
+    }
     execute("DELETE FROM operation_logs;");
     execute("DELETE FROM recovery_records;");
     execute("DELETE FROM saved_experiments;");

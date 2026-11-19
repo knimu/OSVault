@@ -16,6 +16,14 @@ static std::string current_iso_time() {
 BlockAllocator::BlockAllocator(Database& db, size_t total_blocks)
     : db_(db), total_blocks_(total_blocks) {}
 
+void BlockAllocator::set_strategy(const std::string& strategy) {
+    if (strategy == "BEST_FIT" || strategy == "WORST_FIT") {
+        strategy_ = strategy;
+    } else {
+        strategy_ = "FIRST_FIT";
+    }
+}
+
 Result<size_t> BlockAllocator::get_free_block_count() {
     auto stmt_res = db_.prepare("SELECT COUNT(*) FROM block_allocations WHERE is_allocated = 0;");
     if (stmt_res.is_error()) return Result<size_t>::failure(stmt_res.error());
@@ -46,19 +54,43 @@ Result<std::vector<int>> BlockAllocator::allocate_blocks(size_t count, int64_t f
                                                 " blocks, but only " + std::to_string(free_res.value()) + " are free.", 507);
     }
 
-    std::string select_sql = "SELECT block_id FROM block_allocations WHERE is_allocated = 0 ORDER BY block_id ASC LIMIT ?;";
+    std::string select_sql = "SELECT block_id FROM block_allocations WHERE is_allocated = 0 ORDER BY block_id ASC;";
     auto sel_stmt_res = db_.prepare(select_sql);
     if (sel_stmt_res.is_error()) return Result<std::vector<int>>::failure(sel_stmt_res.error());
     auto sel_stmt = std::move(sel_stmt_res.value());
-    sel_stmt.bind_int64(1, static_cast<int64_t>(count));
-
-    std::vector<int> allocated_ids;
+    std::vector<int> free_ids;
     while (sel_stmt.step()) {
-        allocated_ids.push_back(sel_stmt.column_int(0));
+        free_ids.push_back(sel_stmt.column_int(0));
     }
 
-    if (allocated_ids.size() < count) {
-        return Result<std::vector<int>>::failure("Failed to acquire enough contiguous/free blocks.", 507);
+    std::vector<int> allocated_ids;
+    if (strategy_ == "FIRST_FIT") {
+        allocated_ids.assign(free_ids.begin(), free_ids.begin() + static_cast<ptrdiff_t>(count));
+    } else {
+        std::vector<std::vector<int>> runs;
+        for (int block_id : free_ids) {
+            if (runs.empty() || block_id != runs.back().back() + 1) {
+                runs.push_back({block_id});
+            } else {
+                runs.back().push_back(block_id);
+            }
+        }
+
+        const std::vector<int>* selected = nullptr;
+        size_t selected_size = strategy_ == "BEST_FIT" ? ~size_t(0) : 0;
+        for (const auto& run : runs) {
+            if (run.size() < count) continue;
+            if ((strategy_ == "BEST_FIT" && run.size() < selected_size) ||
+                (strategy_ == "WORST_FIT" && run.size() > selected_size)) {
+                selected = &run;
+                selected_size = run.size();
+            }
+        }
+        if (!selected) {
+            return Result<std::vector<int>>::failure("No contiguous free block run large enough for " +
+                                                     std::to_string(count) + " blocks.", 507);
+        }
+        allocated_ids.assign(selected->begin(), selected->begin() + static_cast<ptrdiff_t>(count));
     }
 
     std::string update_sql = "UPDATE block_allocations SET is_allocated = 1, owner_file_id = ?, block_index_in_file = ?, updated_at = ? WHERE block_id = ?;";
@@ -152,6 +184,18 @@ Result<BlockInfo> BlockAllocator::get_block(int block_id) {
         info.owner_file_id = stmt.column_is_null(2) ? 0 : stmt.column_int64(2);
         info.block_index_in_file = stmt.column_int(3);
         info.owner_file_name = stmt.column_is_null(4) ? "" : stmt.column_text(4);
+        if (info.is_allocated) {
+            auto payload_res = db_.prepare(
+                "SELECT data FROM file_blocks WHERE file_id = ? AND block_id = ?;");
+            if (payload_res.is_ok()) {
+                auto payload_stmt = std::move(payload_res.value());
+                payload_stmt.bind_int64(1, info.owner_file_id);
+                payload_stmt.bind_int(2, info.block_id);
+                if (payload_stmt.step()) {
+                    info.payload = payload_stmt.column_blob(0);
+                }
+            }
+        }
         return Result<BlockInfo>::ok(std::move(info));
     }
     return Result<BlockInfo>::failure("Block not found: " + std::to_string(block_id), 404);

@@ -4,6 +4,26 @@
 using namespace osvault;
 
 TEST_SUITE("scheduler") {
+    TEST_CASE("Priority scheduling with lower number as higher priority") {
+        std::vector<ProcessTask> tasks = {
+            {"P1", 0, 4, 3},
+            {"P2", 1, 3, 1},
+            {"P3", 2, 2, 2}
+        };
+
+        auto res = ProcessScheduler::run_priority_non_preemptive(tasks);
+        CHECK(res.is_ok());
+        const auto& r = res.value();
+
+        CHECK(r.processes[0].pid == "P1");
+        CHECK(r.processes[0].completion_time == 4);
+        CHECK(r.processes[1].pid == "P2");
+        CHECK(r.processes[1].completion_time == 7);
+        CHECK(r.processes[2].pid == "P3");
+        CHECK(r.processes[2].completion_time == 9);
+        CHECK(r.avg_waiting_time == doctest::Approx(8.0 / 3.0));
+    }
+
     TEST_CASE("FCFS calculation and Gantt chart") {
         std::vector<ProcessTask> tasks = {
             {"P1", 0, 4, 1},
@@ -114,6 +134,8 @@ TEST_SUITE("scheduler") {
         CHECK(ProcessScheduler::validate_tasks({}).is_error());
         CHECK(ProcessScheduler::validate_tasks({{"P1", -1, 5, 0}}).is_error());
         CHECK(ProcessScheduler::validate_tasks({{"P1", 0, 0, 0}}).is_error());
+        CHECK(ProcessScheduler::validate_tasks({{"P1", 0, 1, -1}}).is_error());
+        CHECK(ProcessScheduler::validate_tasks({{"P1", 0, 1, 1}, {"P1", 1, 2, 2}}).is_error());
         CHECK(ProcessScheduler::run_round_robin({{"P1", 0, 5, 0}}, 0).is_error());
     }
 }

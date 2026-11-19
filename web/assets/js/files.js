@@ -4,6 +4,8 @@
 
 window.filesModule = {
   isEditing: false,
+  currentDirectoryId: 0,
+  directoryStack: [{ id: 0, name: 'Root' }],
 
   init() {
     this.bindEvents();
@@ -11,6 +13,12 @@ window.filesModule = {
   },
 
   bindEvents() {
+    const btnNewFolder = document.getElementById('btn-new-folder');
+    if (btnNewFolder) btnNewFolder.onclick = () => this.toggleDirectoryCreate(true);
+    const btnCreateFolder = document.getElementById('btn-create-folder');
+    if (btnCreateFolder) btnCreateFolder.onclick = () => this.createDirectory();
+    const btnCancelFolder = document.getElementById('btn-cancel-folder');
+    if (btnCancelFolder) btnCancelFolder.onclick = () => this.toggleDirectoryCreate(false);
     // Open Create Modal
     const btnCreate = document.getElementById('btn-create-file-modal');
     if (btnCreate) {
@@ -60,23 +68,42 @@ window.filesModule = {
     if (!tbody) return;
 
     try {
-      const data = await window.api.listFiles(query);
+      const [data, directories] = await Promise.all([
+        window.api.listFiles(query, this.currentDirectoryId),
+        window.api.listDirectories(this.currentDirectoryId)
+      ]);
       const files = data.files || [];
+      const dirs = directories.directories || [];
+      this.renderBreadcrumb();
 
       const countBadge = document.getElementById('file-count-badge');
       if (countBadge) {
-        countBadge.textContent = `${files.length} file${files.length === 1 ? '' : 's'} stored`;
+        countBadge.textContent = `${dirs.length} folder${dirs.length === 1 ? '' : 's'}, ${files.length} file${files.length === 1 ? '' : 's'}`;
       }
 
-      if (files.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted p-4">No files found. Click "<strong>+ Create File</strong>" above to store data.</td></tr>`;
+      if (dirs.length === 0 && files.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted p-4">This directory is empty. Create a folder or file to begin.</td></tr>`;
         return;
       }
 
-      tbody.innerHTML = files.map(f => {
+      const directoryRows = dirs.map(d => `
+        <tr>
+          <td class="font-mono text-muted small">DIR-${d.id}</td>
+          <td><button class="file-folder-link" onclick="window.filesModule.openDirectory(${d.id}, '${this.escape(d.name)}')">📁 <strong>${this.escape(d.name)}</strong></button></td>
+          <td class="text-muted">-</td>
+          <td class="text-muted">Directory</td>
+          <td class="text-muted small">${this.formatTimestamp(d.created_at)}</td>
+          <td class="text-muted small">-</td>
+          <td style="text-align:right;">
+            <button class="btn btn-danger btn-sm" onclick="window.filesModule.deleteDirectory(${d.id}, '${this.escape(d.name)}')">Delete</button>
+          </td>
+        </tr>
+      `).join('');
+
+      const fileRows = files.map(f => {
         const blockIds = (f.block_ids && f.block_ids.length > 0) ? f.block_ids.join(', ') : '-';
-        const createdStr = f.created_at ? new Date(f.created_at * 1000).toLocaleString() : '-';
-        const updatedStr = f.updated_at ? new Date(f.updated_at * 1000).toLocaleString() : '-';
+        const createdStr = this.formatTimestamp(f.created_at);
+        const updatedStr = this.formatTimestamp(f.updated_at);
         const safeName = this.escape(f.name);
 
         return `
@@ -97,6 +124,7 @@ window.filesModule = {
           </tr>
         `;
       }).join('');
+      tbody.innerHTML = directoryRows + fileRows;
     } catch (err) {
       tbody.innerHTML = `<tr><td colspan="7" class="text-center text-danger p-4">Error loading files: ${err.message}</td></tr>`;
     }
@@ -120,7 +148,7 @@ window.filesModule = {
 
   async editFile(name) {
     try {
-      const f = await window.api.readFile(name);
+      const f = await window.api.readFile(name, this.currentDirectoryId);
       this.isEditing = true;
       const modal = document.getElementById('file-modal');
       const title = document.getElementById('modal-title');
@@ -154,13 +182,17 @@ window.filesModule = {
       window.app.showToast('Please enter a valid filename', 'warning');
       return;
     }
+    if (!this.validateName(name)) {
+      window.app.showToast('Filename: use 1-128 alphanumeric characters, dots, underscores, or dashes.', 'warning');
+      return;
+    }
 
     try {
       if (this.isEditing) {
-        await window.api.writeFile(name, content);
+        await window.api.writeFile(name, content, this.currentDirectoryId);
         window.app.showToast(`File '${name}' updated successfully!`, 'success');
       } else {
-        await window.api.createFile(name, content);
+        await window.api.createFile(name, content, this.currentDirectoryId);
         window.app.showToast(`File '${name}' created and allocated to storage!`, 'success');
       }
 
@@ -175,7 +207,7 @@ window.filesModule = {
 
   async viewFile(name) {
     try {
-      const f = await window.api.readFile(name);
+      const f = await window.api.readFile(name, this.currentDirectoryId);
       const modal = document.getElementById('file-view-modal');
       const title = document.getElementById('view-modal-title');
       const meta = document.getElementById('view-file-meta');
@@ -210,7 +242,7 @@ window.filesModule = {
     }
 
     try {
-      await window.api.deleteFile(name);
+      await window.api.deleteFile(name, this.currentDirectoryId);
       window.app.showToast(`File '${name}' deleted and blocks reclaimed.`, 'info');
       this.refresh();
       if (window.dashboardModule) window.dashboardModule.refresh();
@@ -218,6 +250,80 @@ window.filesModule = {
     } catch (err) {
       window.app.showToast(err.message, 'error');
     }
+  },
+
+  toggleDirectoryCreate(show) {
+    const row = document.getElementById('directory-create-row');
+    const input = document.getElementById('directory-name');
+    if (row) row.style.display = show ? 'flex' : 'none';
+    if (show && input) {
+      input.value = '';
+      input.focus();
+    }
+  },
+
+  async createDirectory() {
+    const input = document.getElementById('directory-name');
+    const name = input ? input.value.trim() : '';
+    if (!this.validateName(name)) {
+      window.app.showToast('Directory name: use 1-128 alphanumeric characters, dots, underscores, or dashes.', 'warning');
+      return;
+    }
+    try {
+      await window.api.createDirectory(name, this.currentDirectoryId);
+      window.app.showToast(`Folder '${name}' created.`, 'success');
+      this.toggleDirectoryCreate(false);
+      await this.refresh();
+    } catch (err) {
+      window.app.showToast(err.message, 'error');
+    }
+  },
+
+  openDirectory(directoryId, name) {
+    this.directoryStack.push({ id: directoryId, name });
+    this.currentDirectoryId = directoryId;
+    this.refresh();
+  },
+
+  navigateToDirectory(directoryId) {
+    const index = this.directoryStack.findIndex(item => item.id === directoryId);
+    if (index >= 0) this.directoryStack = this.directoryStack.slice(0, index + 1);
+    this.currentDirectoryId = directoryId;
+    this.refresh();
+  },
+
+  renderBreadcrumb() {
+    const breadcrumb = document.getElementById('file-breadcrumb');
+    if (!breadcrumb) return;
+    breadcrumb.innerHTML = this.directoryStack.map((item, index) => `
+      <button class="file-breadcrumb-link ${index === this.directoryStack.length - 1 ? 'active' : ''}"
+        onclick="window.filesModule.navigateToDirectory(${item.id})">${this.escape(item.name)}</button>
+      ${index < this.directoryStack.length - 1 ? '<span>/</span>' : ''}
+    `).join('');
+  },
+
+  async deleteDirectory(directoryId, name) {
+    if (!confirm(`Delete folder '${name}'? It must be empty.`)) return;
+    try {
+      await window.api.deleteDirectory(directoryId);
+      window.app.showToast(`Folder '${name}' deleted.`, 'info');
+      await this.refresh();
+    } catch (err) {
+      window.app.showToast(err.message, 'error');
+    }
+  },
+
+  validateName(name) {
+    return name.length > 0 && name.length <= 128 && name !== '.' && name !== '..' &&
+      /^[A-Za-z0-9._-]+$/.test(name);
+  },
+
+  formatTimestamp(timestamp) {
+    if (!timestamp) return '-';
+    const date = typeof timestamp === 'number'
+      ? new Date(timestamp < 1e12 ? timestamp * 1000 : timestamp)
+      : new Date(timestamp);
+    return Number.isNaN(date.getTime()) ? '-' : date.toLocaleString();
   },
 
   escape(s) {

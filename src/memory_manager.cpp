@@ -90,6 +90,14 @@ MemoryAllocationResult MemoryManager::get_state(const std::string& strategy) con
 
 Result<MemoryAllocationResult> MemoryManager::perform_allocation(
     const std::string& strategy, const std::string& process_name, size_t size, int chosen_index) {
+    if (process_name.empty()) {
+        return Result<MemoryAllocationResult>::failure("Process name cannot be empty.", 400);
+    }
+    for (const auto& partition : partitions_) {
+        if (partition.is_allocated && partition.process_name == process_name) {
+            return Result<MemoryAllocationResult>::failure("Process '" + process_name + "' already owns allocated memory.", 409);
+        }
+    }
     if (chosen_index < 0 || chosen_index >= static_cast<int>(partitions_.size())) {
         auto fail_state = get_state(strategy);
         fail_state.success = false;

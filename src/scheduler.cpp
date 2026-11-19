@@ -3,6 +3,7 @@
 #include <numeric>
 #include <queue>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace osvault {
 
@@ -10,15 +11,22 @@ Result<void> ProcessScheduler::validate_tasks(const std::vector<ProcessTask>& ta
     if (tasks.empty()) {
         return Result<void>::failure("Process list cannot be empty.", 400);
     }
+    std::unordered_set<std::string> seen_pids;
     for (const auto& t : tasks) {
         if (t.pid.empty()) {
             return Result<void>::failure("Process ID cannot be empty.", 400);
+        }
+        if (!seen_pids.insert(t.pid).second) {
+            return Result<void>::failure("Duplicate process ID: " + t.pid, 400);
         }
         if (t.arrival_time < 0) {
             return Result<void>::failure("Arrival time cannot be negative for PID: " + t.pid, 400);
         }
         if (t.burst_time <= 0) {
             return Result<void>::failure("Burst time must be greater than 0 for PID: " + t.pid, 400);
+        }
+        if (t.priority < 0) {
+            return Result<void>::failure("Priority cannot be negative for PID: " + t.pid, 400);
         }
     }
     return Result<void>::ok();

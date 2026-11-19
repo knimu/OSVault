@@ -8,6 +8,104 @@ namespace fs = std::filesystem;
 using namespace osvault;
 
 TEST_SUITE("storage") {
+    TEST_CASE("File payload maps to allocated logical blocks") {
+        std::string db_file = "test_storage_blocks.db";
+        std::error_code ec;
+        fs::remove(db_file, ec);
+
+        Database db;
+        CHECK(db.open(db_file).is_ok());
+        BlockAllocator alloc(db, 1024);
+        StorageEngine engine(db, alloc, 4096);
+
+        std::string payload(4097, 'Z');
+        auto file = engine.create_file("mapped.bin", payload);
+        CHECK(file.is_ok());
+        CHECK(file.value().block_count == 2);
+        CHECK(file.value().block_ids.size() == 2);
+        CHECK(file.value().size == payload.size());
+        CHECK(file.value().block_count == (payload.size() + 4095) / 4096);
+
+        CHECK(alloc.get_allocated_block_count().value() == 2);
+        auto block0 = alloc.get_block(file.value().block_ids[0]);
+        CHECK(block0.is_ok());
+        CHECK(block0.value().is_allocated);
+        CHECK(block0.value().owner_file_id == file.value().id);
+        CHECK(block0.value().payload.size() == 4096);
+
+        auto block1 = alloc.get_block(file.value().block_ids[1]);
+        CHECK(block1.is_ok());
+        CHECK(block1.value().is_allocated);
+        CHECK(block1.value().owner_file_id == file.value().id);
+        CHECK(block1.value().payload == "Z");
+
+        CHECK(engine.delete_file("mapped.bin").is_ok());
+        CHECK(alloc.get_allocated_block_count().value() == 0);
+
+        db.close();
+        fs::remove(db_file, ec);
+    }
+
+    TEST_CASE("Block allocation strategies select real free runs") {
+        std::string db_file = "test_storage_strategy.db";
+        std::error_code ec;
+        fs::remove(db_file, ec);
+
+        Database db;
+        CHECK(db.open(db_file).is_ok());
+        BlockAllocator alloc(db, 1024);
+
+        alloc.set_strategy("BEST_FIT");
+        auto blocks = alloc.allocate_blocks(2, 77);
+        CHECK(blocks.is_ok());
+        CHECK(blocks.value() == std::vector<int>{0, 1});
+
+        db.close();
+        fs::remove(db_file, ec);
+    }
+
+    TEST_CASE("Persistent directory and nested file operations") {
+        std::string db_file = "test_storage_directories.db";
+        std::error_code ec;
+        fs::remove(db_file, ec);
+
+        Database db;
+        CHECK(db.open(db_file).is_ok());
+        BlockAllocator alloc(db, 1024);
+        StorageEngine engine(db, alloc, 4096);
+
+        auto dir = engine.create_directory("documents", 0);
+        CHECK(dir.is_ok());
+        CHECK(dir.value().name == "documents");
+
+        auto nested_dir = engine.create_directory("notes", dir.value().id);
+        CHECK(nested_dir.is_ok());
+
+        auto file = engine.create_file("todo.txt", "first", dir.value().id);
+        CHECK(file.is_ok());
+        CHECK(file.value().directory_id == dir.value().id);
+
+        auto read = engine.read_file("todo.txt", dir.value().id);
+        CHECK(read.is_ok());
+        CHECK(read.value() == "first");
+
+        CHECK(engine.write_file("todo.txt", "updated", dir.value().id).is_ok());
+        CHECK(engine.read_file("todo.txt", dir.value().id).value() == "updated");
+
+        auto list = engine.list_directory(dir.value().id);
+        CHECK(list.is_ok());
+        CHECK(list.value().size() == 1);
+
+        CHECK(engine.delete_directory(dir.value().id).is_error());
+        CHECK(engine.delete_file("todo.txt", dir.value().id).is_ok());
+        CHECK(engine.delete_directory(dir.value().id).is_error()); // Child directory must be removed first
+        CHECK(engine.delete_directory(nested_dir.value().id).is_ok());
+        CHECK(engine.delete_directory(dir.value().id).is_ok());
+
+        db.close();
+        fs::remove(db_file, ec);
+    }
+
     TEST_CASE("Empty file creation and read") {
         std::string db_file = "test_storage_empty.db";
         std::error_code ec;

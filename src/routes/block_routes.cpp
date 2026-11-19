@@ -32,6 +32,7 @@ void register_block_routes(crow::SimpleApp& app, ServerContext& ctx) {
         res["ok"] = true;
         res["total_blocks"] = ctx.allocator.total_blocks();
         res["block_size"] = ctx.storage.block_size();
+        res["strategy"] = ctx.allocator.strategy();
         res["blocks"] = std::move(items);
         return crow::response(200, res);
     });
@@ -55,6 +56,23 @@ void register_block_routes(crow::SimpleApp& app, ServerContext& ctx) {
         res["owner_file_id"] = b.owner_file_id;
         res["owner_file_name"] = b.owner_file_name;
         res["block_index_in_file"] = b.block_index_in_file;
+        res["payload"] = b.payload;
+        res["payload_size"] = b.payload.size();
+        return crow::response(200, res);
+    });
+
+    CROW_ROUTE(app, "/api/blocks/strategy").methods(crow::HTTPMethod::Post)
+    ([&ctx](const crow::request& req) {
+        auto json = crow::json::load(req.body);
+        if (!json || !json.has("strategy")) return crow::response(400, "Required: strategy.");
+        std::string strategy = std::string(json["strategy"].s());
+        if (strategy != "FIRST_FIT" && strategy != "BEST_FIT" && strategy != "WORST_FIT") {
+            return crow::response(400, "Strategy must be FIRST_FIT, BEST_FIT, or WORST_FIT.");
+        }
+        ctx.allocator.set_strategy(strategy);
+        crow::json::wvalue res;
+        res["ok"] = true;
+        res["strategy"] = ctx.allocator.strategy();
         return crow::response(200, res);
     });
 }
